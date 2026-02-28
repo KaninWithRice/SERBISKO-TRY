@@ -20,25 +20,37 @@ class AuthController extends Controller
         $password = $request->input('password');
 
         // 2. Find user in Database
-        // IMPROVEMENT: Now checks Middle Name as well
-        $user = DB::table('users')
+        $query = DB::table('users')
             ->where('last_name', $lastName)
             ->where('first_name', $givenName)
-            ->where('middle_name', $middleName) // <--- Added this check
-            ->where('birthday', $dob)
-            ->first();
+            ->where('birthday', $dob);
+
+        // SAFELY check middle name: If they typed one, search for it. 
+        // If they left it blank, look for NULL or empty in the database.
+        if (!empty($middleName)) {
+            $query->where('middle_name', $middleName);
+        } else {
+            $query->where(function($q) {
+                $q->whereNull('middle_name')->orWhere('middle_name', '');
+            });
+        }
+
+        $user = $query->first();
 
         // 3. Check if user exists and password is correct
         if ($user && Hash::check($password, $user->password)) {
             
+            // Force role to lowercase just in case the database says 'Admin' instead of 'admin'
+            $role = strtolower($user->role); 
+
             // Save user info to session
             Session::put('user_id', $user->id);
-            Session::put('user_role', $user->role);
+            Session::put('user_role', $role); 
             Session::put('user_name', $user->first_name);
 
             // 4. Redirect based on Role
-            if ($user->role === 'admin') {
-                return redirect('/admin/dashboard');
+            if ($role === 'admin') {
+                return redirect('/dashboard'); // <-- UPDATED TO /dashboard
             } else {
                 return redirect('/student/grade-selection');
             }
