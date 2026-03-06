@@ -4,10 +4,12 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ScanController;
 use App\Http\Middleware\CheckAdmin;
+use App\Http\Controllers\EnrollmentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -49,49 +51,29 @@ Route::get('/student/grade-selection', function () {
     return view('student.selection');
 });
 
-Route::post('/student/save-grade', function (Request $request) {
-    session(['grade_level' => $request->input('grade_level')]);
-    return redirect('/student/status-selection'); 
-});
+Route::post('/student/save-grade', [EnrollmentController::class, 'saveGrade']);
 
 Route::get('/student/status-selection', function () {
     if (!session()->has('user_id')) return redirect('/');
     return view('student.status');
 });
 
-Route::post('/student/save-status', function (Request $request) {
-    session(['student_status' => $request->input('student_status')]);
-    return redirect('/student/track-selection');
-});
+Route::post('/student/save-status', [EnrollmentController::class, 'saveStatus']);
 
 Route::get('/student/track-selection', function () {
     if (!session()->has('user_id')) return redirect('/');
     return view('student.track');
 });
 
-Route::post('/student/save-track', function (Request $request) {
-    session(['track' => $request->input('track')]);
-    return redirect('/student/cluster-selection');
-});
+Route::post('/student/save-track', [EnrollmentController::class, 'saveTrack']);
 
 Route::get('/student/cluster-selection', function () {
     if (!session()->has('user_id')) return redirect('/');
     return view('student.cluster');
 });
 
-Route::post('/student/save-cluster', function (Request $request) {
-    $cluster = $request->input('cluster');
-    session(['cluster' => $cluster]);
-    
-    try {
-        Http::post('http://127.0.0.1:51234/api/strand/' . $cluster);
-        Http::post('http://127.0.0.1:51234/api/door', ['action' => 'close']);
-    } catch (\Exception $e) {
-        \Log::error("Arduino offline (Sorting Trigger): " . $e->getMessage());
-    }
-    
-    return redirect('/student/cluster-loading');
-});
+// JUST THIS ONE LINE - The Controller handles the Arduino logic now!
+Route::post('/student/save-cluster', [EnrollmentController::class, 'saveCluster']);
 
 Route::get('/student/cluster-loading', function () {
     if (!session()->has('user_id')) return redirect('/');
@@ -103,40 +85,11 @@ Route::get('/student/checklist', function () {
     return view('student.checklist');
 });
 
-Route::post('/student/save-checklist', function (Request $request) {
-    $studentStatus = session('student_status', 'Regular'); 
-    
-    // Normalize status for consistency
-    $statusKey = strtolower($studentStatus);
-    
-    $firstDocs = [
-        'regular'    => 'Report Card (SF9)',
-        'als'        => 'ALS Certificate',
-        'transferee' => 'Report Card (SF9)',
-        'balik-aral' => 'Report Card (SF9)'
-    ];
-    
-    $currentDoc = $firstDocs[$statusKey] ?? 'Report Card (SF9)';
-    session(['current_doc' => $currentDoc]);
-    
-    return redirect('/student/capture');
-});
+// Replace the old checklist closure
+Route::post('/student/save-checklist', [EnrollmentController::class, 'saveChecklist']);
 
-Route::get('/student/capture', function (Request $request) {
-    if (!session()->has('user_id')) return redirect('/');
-    
-    try {
-        Http::post('http://127.0.0.1:51234/api/door', ['action' => 'open']);
-    } catch (\Exception $e) {
-        \Log::error("Arduino Offline (Slot Open): " . $e->getMessage());
-    }
-
-    if ($request->has('doc')) {
-        session(['current_doc' => $request->query('doc')]);
-    }
-
-    return view('student.capture');
-});
+// Replace the old capture closure
+Route::get('/student/capture', [EnrollmentController::class, 'showCapture']);
 
 Route::post('/student/save-image', [ScanController::class, 'processDocument']);
 

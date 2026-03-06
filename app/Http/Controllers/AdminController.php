@@ -135,7 +135,6 @@ class AdminController extends Controller
                 'kiosk_enrollments.grade_level as kiosk_grade',
                 'kiosk_enrollments.track as kiosk_track',
                 'kiosk_enrollments.cluster as kiosk_cluster',
-                'kiosk_enrollments.strand as kiosk_strand',
                 'kiosk_enrollments.academic_status as kiosk_status'
             );
 
@@ -311,22 +310,22 @@ class AdminController extends Controller
         $pendingScans = DB::table('scans')
             ->join('users', 'scans.user_id', '=', 'users.id')
             ->leftJoin('students', 'users.id', '=', 'students.user_id')
+            // We link to kiosk_enrollments to get the "Official" Grade Level
             ->leftJoin('kiosk_enrollments as ke', 'students.lrn', '=', 'ke.student_lrn')
             ->leftJoin('pre_enrollments as pe', 'students.lrn', '=', 'pe.student_lrn')
             ->select(
                 'scans.*', 
                 'users.first_name', 
                 'users.last_name',
-                'ke.grade_level as kiosk_grade',
+                'ke.grade_level as kiosk_grade', // This replaces the old scans.grade_level
                 'pe.responses'
             )
             ->where('scans.status', 'manual_verification')
             ->orderBy('scans.created_at', 'asc')
             ->get()
             ->map(function($scan) {
-                if ($scan->grade_level) {
-                    $scan->display_grade = $scan->grade_level;
-                } elseif ($scan->kiosk_grade) {
+                // Updated Logic: Priority goes to Kiosk Enrollment data, then JSON backup
+                if ($scan->kiosk_grade) {
                     $scan->display_grade = $scan->kiosk_grade;
                 } else {
                     $details = json_decode($scan->responses, true) ?? [];

@@ -25,7 +25,6 @@ return new class extends Migration
             $table->string('academic_status'); // Regular, Transferee, Balik-Aral
             $table->string('grade_level');     // G11 or G12
             $table->string('track')->nullable();    // FOR G11; ACADEMIC or TechPro, etc.
-            $table->string('strand')->nullable();   // STEM, HUMSS, ir ABM.
             $table->string('cluster')->nullable();  // Specific grouping for G11
             
             // Kiosk Session Info
@@ -41,6 +40,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('kiosk_entries');
+        Schema::dropIfExists('kiosk_enrollments');
     }
 };

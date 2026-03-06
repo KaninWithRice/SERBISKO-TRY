@@ -19,9 +19,7 @@ return new class extends Migration
             
             // Fixed these names to perfectly match your ScanController
             $table->string('document_type'); 
-            $table->string('file_path');     
-            $table->string('grade_level')->nullable(); 
-            
+            $table->string('file_path');                 
             $table->string('lrn')->nullable(); // Only for Report Cards
             $table->string('status')->default('pending'); // pending, verified, failed
             $table->string('remarks')->nullable(); // e.g., "Grade 10 Verified"

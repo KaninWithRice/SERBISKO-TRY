@@ -39,7 +39,6 @@ class ScanController extends Controller
                 'user_id'       => $userId,
                 'document_type' => $docType,
                 'file_path'     => $filePath,
-                'grade_level'   => session('grade_level'),
                 'status'        => 'pending',
                 'created_at'    => now(),
                 'updated_at'    => now()
@@ -120,8 +119,21 @@ class ScanController extends Controller
                         $lrn = $ocrResult['lrn'] ?? null;
                         if ($lrn) {
                             DB::table('scans')->where('id', $scanId)->update(['lrn' => $lrn, 'remarks' => 'Sending to LIS...']);
-                            $enrollingGrade = session('grade_level', '11'); 
+                            
+                            // --- NEW BRIDGE LOGIC START ---
+                            // 1. Get the enrolling grade from session first (for speed)
+                            $enrollingGrade = session('grade_level');
+
+                            // 2. If session is empty, look up the database using the LRN bridge
+                            if (!$enrollingGrade) {
+                                $enrollingGrade = DB::table('kiosk_enrollments')
+                                    ->where('student_lrn', $lrn)
+                                    ->value('grade_level') ?? '11'; // Default to 11 if totally missing
+                            }
+
+                            // 3. Logic: If entering 12, check Grade 11. If entering 11, check Grade 10.
                             $expectedGrade = ($enrollingGrade == '12') ? 'Grade 11' : 'Grade 10';
+                            // --- NEW BRIDGE LOGIC END ---
 
                             try {
                                 Http::timeout(10)->post('http://127.0.0.1:5001/verify', [
