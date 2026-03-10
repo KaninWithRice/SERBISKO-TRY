@@ -11,7 +11,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // Apply CSRF protection to web routes
+        // Register your new presence tracking middleware
+        $middleware->web(append: [
+                \App\Http\Middleware\CheckAdmin::class,
+                \App\Http\Middleware\MarkUserAsOnline::class, // Add this line here
+        ]);
+
+        // Your existing CSRF exceptions
         $middleware->validateCsrfTokens(except: [
             'api/*',
         ]);
@@ -19,3 +25,5 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions) {
         //
     })->create();
+
+    

@@ -11,6 +11,10 @@ class CheckAdmin
 {
     public function handle(Request $request, Closure $next)
     {
+        // If the user is already on the page we redirect to, don't check session!
+        if ($request->is('/') || $request->is('login')) {
+            return $next($request);
+        }
         $userId = Session::get('user_id');
         $userRole = Session::get('user_role');
 

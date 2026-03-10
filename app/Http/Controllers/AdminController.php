@@ -12,9 +12,22 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 
-
 class AdminController extends Controller
 {
+    public function showLoginForm()
+    {
+        return view('login');
+    }
+
+    public function checkUserStatus($id)
+    {
+        $isOnline = \Illuminate\Support\Facades\Cache::has('user-is-online-' . $id);
+        
+        return response()->json([
+            'online' => $isOnline
+        ]);
+    }
+
     // 1. DASHBOARD LOGIC
     public function index(Request $request) 
     {
@@ -35,7 +48,7 @@ class AdminController extends Controller
 
         $totalRegistrations = $applyFilter(DB::table('students')
             ->join('users', 'students.user_id', '=', 'users.id') 
-            ->whereNull('users.deleted_at') // Add this condition to exclude soft-deleted users
+            ->whereNull('users.deleted_at')
             ->leftJoin('kiosk_enrollments', 'students.lrn', '=', 'kiosk_enrollments.student_lrn')
             ->leftJoin('pre_enrollments', 'students.lrn', '=', 'pre_enrollments.student_lrn'))
             ->count();
@@ -360,23 +373,28 @@ class AdminController extends Controller
     public function requirementhub(){ return view('admin.requirementhub');}
     public function accountsettings(){ return view('admin.accountsettings'); }
 
+    // 6. ACCESS MANAGEMENT LOGIC
     public function accessManagement(Request $request)
     {
-        $query = User::query();
+        $activeTab = $request->get('role', 'All');
 
-        $query->whereIn('role', ['super_admin', 'admin', 'facilitator']);
+        if ($activeTab === 'Archived') {
+            $staff = User::onlyTrashed()
+                ->whereIn('role', ['super_admin', 'admin', 'facilitator'])
+                ->get();
+        } else {
+            $query = User::query()->whereIn('role', ['super_admin', 'admin', 'facilitator']);
 
-        if ($request->filled('role') && $request->role !== 'All') {
-            $roleMap = [
-                'Administrator' => 'admin',
-                'Facilitator'   => 'facilitator'
-            ];
-
-            $targetRole = $roleMap[$request->role] ?? strtolower($request->role);
-            $query->where('role', $targetRole);
+            if ($activeTab !== 'All') {
+                $roleMap = [
+                    'Administrator' => 'admin',
+                    'Facilitator'   => 'facilitator'
+                ];
+                $targetRole = $roleMap[$activeTab] ?? strtolower($activeTab);
+                $query->where('role', $targetRole);
+            }
+            $staff = $query->get();
         }
-
-        $staff = $query->get();
 
         return view('admin.accessmanagement_page.accessmanagement', compact('staff'));
     }
@@ -390,47 +408,105 @@ class AdminController extends Controller
             'extension_name' => 'nullable|string|max:10',
             'birthday'       => 'required|date',
             'role'           => 'required|string|in:admin,administrator,facilitator,super_admin',
-            'password'       => 'required|string|min:8',
+            // Changed to sometimes/nullable so you don't overwrite with a blank hash
+            'password'       => 'sometimes|nullable|string|min:8',
         ]);
 
-        // Map the form value to the exact string stored in the database
         $roleMap = [
-            'admin' => 'admin',
+            'admin'         => 'admin',
+            'administrator' => 'admin',
             'facilitator'   => 'facilitator',
             'super_admin'   => 'super_admin'
         ];
 
-        User::create([
-            'first_name'     => $validated['first_name'],
-            'last_name'      => $validated['last_name'],
-            'middle_name'    => $validated['middle_name'],
-            'extension_name' => $validated['extension_name'],
-            'birthday'       => $validated['birthday'],
-            'role'           => $roleMap[strtolower($validated['role'])] ?? 'facilitator',
-            'password' => Hash::make($request->password),
-        ]);
+        $finalRole = $roleMap[strtolower($validated['role'])] ?? 'facilitator';
 
-        return redirect()->route('admin.accessmanagement')->with('success', 'New staff member added!');
+        $user = User::withTrashed()
+            ->where('first_name', $validated['first_name'])
+            ->where('last_name', $validated['last_name'])
+            ->where('birthday', $validated['birthday'])
+            ->first();
+
+        if ($user) {
+            if ($user->trashed()) {
+                $user->restore();
+                $statusMessage = 'User found in archives and access has been restored!';
+            } else {
+                return back()->with('info', 'This user is already active in the system.');
+            }
+
+            // Prepare the update array
+            $updateData = [
+                'middle_name'    => $validated['middle_name'],
+                'extension_name' => $validated['extension_name'],
+                'role'           => $finalRole,
+            ];
+
+            // ONLY hash and update password if the admin actually typed one in
+            if ($request->filled('password')) {
+                $updateData['password'] = Hash::make($request->password);
+            }
+
+            $user->update($updateData);
+
+        } else {
+            // If it's a NEW user, you DO need a password
+            if (!$request->filled('password')) {
+                return back()->withErrors(['password' => 'A password is required for new users.']);
+            }
+
+            User::create([
+                'first_name'     => $validated['first_name'],
+                'last_name'      => $validated['last_name'],
+                'middle_name'    => $validated['middle_name'],
+                'extension_name' => $validated['extension_name'],
+                'birthday'       => $validated['birthday'],
+                'role'           => $finalRole,
+                'password'       => Hash::make($request->password),
+            ]);
+            $statusMessage = 'New staff member added successfully!';
+        }
+
+        return redirect()->route('admin.accessmanagement')->with('success', $statusMessage);
+    }
+
+    public function restoreUser($id)
+    {
+        User::onlyTrashed()->findOrFail($id)->restore();
+        return back()->with('success', 'User access restored!');
     }
 
     public function destroy($id)
     {
-        // 1. Fetch the user FIRST to check if it's the currently authenticated admin
         $user = User::findOrFail($id);
 
-        // 2. Safely check the ID against the authenticated user
         if (Auth::id() == $user->id) {
-            return back()->with('error', 'You cannot revoke your own access. Please contact another administrator.');
+            return back()->with('error', 'You cannot revoke your own access.');
         }
 
-        $user = User::findOrFail($id);
-        
-        // 3. Apply Soft Delete
         $user->delete(); 
 
         return back()->with('success', 'User access has been revoked successfully.');
     }
 
+    public function updateRole(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+
+        if (Auth::id() == $user->id) {
+            return back()->with('error', 'You cannot change your own role.');
+        }
+
+        $validated = $request->validate([
+            'role' => 'required|in:admin,facilitator,super_admin',
+        ]);
+
+        $user->update(['role' => $validated['role']]);
+
+        return back()->with('success', "Role updated successfully.");
+    }
+
+    // 7. SYNC LOGIC
     public function performSync() {
         set_time_limit(300); 
         
@@ -467,17 +543,15 @@ class AdminController extends Controller
                 $lrn = trim($row[1]);
 
                 DB::transaction(function () use ($row, $headers, $formattedDob, $lrn, &$newCount, &$updatedCount) {
-                    // 1. Check for an existing ACTIVE student only
                     $existingStudent = DB::table('students')
                         ->join('users', 'students.user_id', '=', 'users.id')
                         ->where('students.lrn', $lrn)
-                        ->whereNull('users.deleted_at') // Crucial: Ignore soft-deleted users
+                        ->whereNull('users.deleted_at')
                         ->select('students.*', 'users.id as active_user_id')
                         ->first();
 
                     $userId = $existingStudent ? $existingStudent->active_user_id : null;
 
-                    // Dynamic JSON Responses (Field 41 onwards)
                     $dynamicResponses = [];
                     for ($i = 41; $i < count($headers); $i++) {
                         $question = $headers[$i] ?? "Field " . $i;
@@ -485,7 +559,6 @@ class AdminController extends Controller
                     }
                     $newJson = json_encode($dynamicResponses);
 
-                    // Prepare incoming data for comparison
                     $incomingStudentData = [
                         'sex'                   => $row[9] ?? null,
                         'age'                   => is_numeric($row[8]) ? (int)$row[8] : null,
@@ -540,7 +613,6 @@ class AdminController extends Controller
                         }
                     }
 
-                    // 2. Update/Insert User (Only if they aren't soft-deleted elsewhere)
                     if ($userId) {
                         DB::table('users')->where('id', $userId)->update([
                             'last_name'      => trim($row[2]),
@@ -551,7 +623,6 @@ class AdminController extends Controller
                             'updated_at'     => $hasChanged ? now() : DB::raw('updated_at'),
                         ]);
                     } else {
-                        // This will create a fresh user if the LRN is new OR if the old LRN user was soft-deleted
                         $userId = DB::table('users')->insertGetId([
                             'last_name'      => trim($row[2]),
                             'first_name'     => trim($row[3]),
@@ -565,7 +636,6 @@ class AdminController extends Controller
                         ]);
                     }
 
-                    // 3. Update/Insert Student 
                     DB::table('students')->updateOrInsert(
                         ['lrn' => $lrn],
                         array_merge($incomingStudentData, [
@@ -575,7 +645,6 @@ class AdminController extends Controller
                         ])
                     );
 
-                    // 4. Update Pre-Enrollment
                     DB::table('pre_enrollments')->updateOrInsert(
                         ['student_lrn' => $lrn],
                         [

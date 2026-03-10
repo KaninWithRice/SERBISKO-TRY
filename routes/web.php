@@ -1,39 +1,44 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ScanController;
 use App\Http\Middleware\CheckAdmin;
 use App\Http\Controllers\EnrollmentController;
+use Illuminate\Support\Facades\DB;
 
 /*
 |--------------------------------------------------------------------------
-| Web Routes
+| Public Routes
 |--------------------------------------------------------------------------
 */
 
+// Change it to this:
 Route::get('/', function () {
     return view('login');
-});
-
+})->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/logout', [AuthController::class, 'logout']);
 
-// ==========================================
-// ADMIN ROUTES (Protected via CheckAdmin)
-// ==========================================
+/*
+|--------------------------------------------------------------------------
+| ADMIN ROUTES (Protected via CheckAdmin)
+|--------------------------------------------------------------------------
+*/
+
 Route::middleware([CheckAdmin::class])->group(function () {
+
+    Route::get('/check-user-status/{id}', [AdminController::class, 'checkUserStatus']);
+
+    // Direct Dashboard Access
     Route::get('/dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
 
+    // Prefixed Admin Routes
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', [AdminController::class, 'index'])->name('dashboard');
         Route::get('/students', [AdminController::class, 'students'])->name('students');
-        Route::get('/students/profile/{lrn}', [AdminController::class, 'profilepage'])->name('studentpage.profilepage'); // Merged from backup
+        Route::get('/students/profile/{lrn}', [AdminController::class, 'profilepage'])->name('studentpage.profilepage'); 
         Route::get('/systemsync', [AdminController::class, 'systemsync'])->name('systemsync');
         Route::get('/verification', [AdminController::class, 'verification'])->name('verification');
         Route::get('/requirementhub', [AdminController::class, 'requirementhub'])->name('requirementhub');
@@ -42,7 +47,9 @@ Route::middleware([CheckAdmin::class])->group(function () {
         Route::post('/verification/action', [AdminController::class, 'handleVerificationAction'])->name('verification.action');
         Route::get('/accessmanagement', [AdminController::class, 'accessManagement'])->name('accessmanagement');
         Route::post('/accessmanagement/store', [AdminController::class, 'storeUser'])->name('accessmanagement.store');
-        Route::delete('/users/{id}', [AdminController::class, 'destroy'])->name('destroyUser'); // Resulting name: admin.destroyUser
+        Route::delete('/users/{id}', [AdminController::class, 'destroy'])->name('destroyUser');
+        Route::patch('/users/{id}/restore', [AdminController::class, 'restoreUser'])->name('restoreUser'); // Fixed double /admin prefix here
+        Route::patch('/users/{id}/update-role', [AdminController::class, 'updateRole'])->name('updateRole');
     });
 });
 
