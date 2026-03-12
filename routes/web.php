@@ -44,8 +44,10 @@ Route::middleware([CheckAdmin::class])->group(function () {
         Route::get('/accessmanagement', [AdminController::class, 'accessManagement'])->name('accessmanagement');
         Route::post('/accessmanagement/store', [AdminController::class, 'storeUser'])->name('accessmanagement.store');
         Route::delete('/users/{id}', [AdminController::class, 'destroy'])->name('destroyUser');
-        Route::patch('/users/{id}/restore', [AdminController::class, 'restoreUser'])->name('restoreUser'); // Fixed double /admin prefix here
+        Route::patch('/users/{id}/restore', [AdminController::class, 'restoreUser'])->name('restoreUser'); 
         Route::patch('/users/{id}/update-role', [AdminController::class, 'updateRole'])->name('updateRole');
+        Route::get('/settings/security', [AuthController::class, 'showSecurity'])->name('admin.security');
+        Route::put('/account/update-password', [AuthController::class, 'updatePassword'])->name('account.update-password');
     });
 });
 

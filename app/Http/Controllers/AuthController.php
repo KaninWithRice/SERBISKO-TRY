@@ -3,10 +3,11 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\User; // Use the Eloquent Model
+use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
@@ -71,5 +72,44 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/login');
+    }
+
+    public function updatePassword(Request $request)
+    {
+        // 1. Backend Validation
+        // We use the same rules as your frontend to ensure security if JS is disabled.
+        $request->validate([
+            'current_password' => ['required'],
+            'new_password' => [
+                'required',
+                'confirmed', // Automatically looks for new_password_confirmation
+                Password::min(8)
+                    ->letters()
+                    ->mixedCase()
+                    ->numbers()
+                    ->symbols(),
+            ],
+        ], [
+            // Custom messages to match your specific UI requirements
+            'current_password.required' => 'Current password is required.',
+            'new_password.required' => 'New password is required.',
+            'new_password.confirmed' => 'Passwords do not match.',
+        ]);
+
+        $user = Auth::user();
+
+        // 2. Verify the "Current Password" field matches the actual DB password
+        if (!Hash::check($request->current_password, $user->password)) {
+            return back()->withErrors([
+                'current_password' => 'The provided password does not match our records.'
+            ])->withInput();
+        }
+
+        // 3. Hash and Save the new password
+        $user->password = Hash::make($request->new_password);
+        $user->save();
+
+        // 4. Redirect with a success notification
+        return back()->with('success', 'Your password has been successfully updated.');
     }
 }
