@@ -14,36 +14,26 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         // 1. Backend Validation
-        // This triggers the @error messages in your Blade template
         $request->validate([
             'last_name' => 'required|string',
             'given_name' => 'required|string',
             'dob' => 'required|date',
             'password' => 'required',
-            // Middle name is excluded because it is optional
         ], [
-            // Custom messages to match your specific wording requirements
             'last_name.required' => 'Required.',
             'given_name.required' => 'Required.',
             'dob.required' => 'Required.',
             'password.required' => 'Required.',
         ]);
 
-        // 2. Get inputs (Only runs if validation passes)
-        $lastName = $request->input('last_name');
-        $givenName = $request->input('given_name');
-        $middleName = $request->input('middle_name');
-        $dob = $request->input('dob');
-        $password = $request->input('password');
-
-        // 3. Find user using Eloquent
-        $query = User::where('last_name', $lastName)
-            ->where('first_name', $givenName) // Note: Ensure your DB column is first_name
-            ->where('birthday', $dob)
+        // 2. Build the query for a full match (including Middle Name logic)
+        $query = User::where('last_name', $request->last_name)
+            ->where('first_name', $request->given_name)
+            ->where('birthday', $request->dob)
             ->whereNull('deleted_at');
 
-        if (!empty($middleName)) {
-            $query->where('middle_name', $middleName);
+        if ($request->filled('middle_name')) {
+            $query->where('middle_name', $request->middle_name);
         } else {
             $query->where(function($q) {
                 $q->whereNull('middle_name')->orWhere('middle_name', '');
@@ -52,25 +42,48 @@ class AuthController extends Controller
 
         $user = $query->first();
 
-        // 4. Authenticate
-        if ($user && Hash::check($password, $user->password)) {
-            Auth::login($user);
+        // 3. Handle Identity Failure
+        if (!$user) {
+            // Check if the user exists ignoring the middle name
+            $partialMatch = User::where('last_name', $request->last_name)
+                ->where('first_name', $request->given_name)
+                ->where('birthday', $request->dob)
+                ->whereNull('deleted_at')
+                ->exists();
 
-            $role = strtolower($user->role); 
-
-            Session::put('user_id', $user->id);
-            Session::put('user_role', $role); 
-            Session::put('user_name', $user->first_name);
-
-            if (in_array($role, ['admin', 'super_admin', 'facilitator'])) {
-                return redirect('/dashboard'); 
-            } else {
-                return redirect('/student/grade-selection');
+            if ($partialMatch) {
+                // Logic: Identity is correct, but Middle Name input vs DB value mismatched
+                return back()->withErrors([
+                    'middle_name' => 'Please enter your middle name.'
+                ])->withInput($request->except('password'));
             }
+
+            // Generic error for all other identity failures
+            return back()->withErrors([
+                'message' => 'Access Denied. The information provided does not match our records.'
+            ])->withInput($request->except('password'));
         }
 
-        // If database check fails, return the general error message
-        return back()->withErrors(['message' => 'Invalid credentials. Please check your details.'])->withInput();
+        // 4. Password Verification
+        if (!Hash::check($request->password, $user->password)) {
+            return back()->withErrors([
+                'password' => 'Incorrect password.'
+            ])->withInput($request->except('password'));
+        }
+
+        // 5. Success - Authenticate and Session management
+        Auth::login($user);
+        $role = strtolower($user->role); 
+
+        Session::put('user_id', $user->id);
+        Session::put('user_role', $role); 
+        Session::put('user_name', $user->first_name);
+
+        if (in_array($role, ['admin', 'super_admin', 'facilitator'])) {
+            return redirect('/dashboard'); 
+        }
+        
+        return redirect('/student/grade-selection');
     }
 
     public function logout(Request $request)

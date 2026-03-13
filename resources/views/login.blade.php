@@ -40,7 +40,7 @@
             <h2 class="text-4xl font-bold text-blue-900 mb-8">Sign in to get started</h2>
 
             @if($errors->has('message'))
-                <div class="bg-red-100 border-l-4 border-red-700 text-red-700 p-4 mb-6 rounded-r-xl shadow-sm animate-pulse">
+                <div class="bg-red-100 border-l-4 border-red-700 text-red-700 p-4 mb-6 rounded-r-xl shadow-sm">
                     <p class="font-bold text-sm">Access Denied</p>
                     <p class="text-xs">{{ $errors->first('message') }}</p>
                 </div>
@@ -51,6 +51,7 @@
                     errors: {
                         last_name: {{ $errors->has('last_name') ? 'true' : 'false' }},
                         given_name: {{ $errors->has('given_name') ? 'true' : 'false' }},
+                        middle_name: {{ $errors->has('middle_name') ? 'true' : 'false' }},
                         dob: {{ $errors->has('dob') ? 'true' : 'false' }},
                         password: {{ $errors->has('password') ? 'true' : 'false' }}
                     } 
@@ -59,83 +60,80 @@
 
                 <div class="grid grid-cols-3 gap-3">
                     <div class="flex flex-col">
-                        <label class="text-xs font-bold text-gray-700 mb-1 ml-1 flex justify-between items-center">
-                            <span>Last Name</span>
-                            <template x-if="errors.last_name">
-                                <span class="text-red-700 italic text-[10px]">Required.</span>
-                            </template>
-                        </label>
-                        <input type="text" name="last_name" value="{{ old('last_name') }}" placeholder="Last Name" 
-                               @input="errors.last_name = false"
-                               :class="errors.last_name ? 'border-red-700' : 'border-green-700/30'"
-                               class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none">
+                        <label class="text-xs font-bold text-gray-700 mb-1 ml-1">Last Name</label>
+                        <input type="text" name="last_name" value="{{ old('last_name') }}" 
+                            @input="errors.last_name = false"
+                            :class="errors.last_name ? 'border-red-700' : 'border-green-700/30'"
+                            class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none">
+                        <template x-if="errors.last_name">
+                            <span class="text-red-700 italic text-[10px] mt-1 ml-1">{{ $errors->first('last_name') }}</span>
+                        </template>
                     </div>
 
                     <div class="flex flex-col">
-                        <label class="text-xs font-bold text-gray-700 mb-1 ml-1 flex justify-between items-center">
-                            <span>Given Name</span>
-                            <template x-if="errors.given_name">
-                                <span class="text-red-700 italic text-[10px]">Required.</span>
-                            </template>
-                        </label>
-                        <input type="text" name="given_name" value="{{ old('given_name') }}" placeholder="Given Name" 
-                               @input="errors.given_name = false"
-                               :class="errors.given_name ? 'border-red-700' : 'border-green-700/30'"
-                               class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none">
+                        <label class="text-xs font-bold text-gray-700 mb-1 ml-1">Given Name</label>
+                        <input type="text" name="given_name" value="{{ old('given_name') }}"
+                            @input="errors.given_name = false"
+                            :class="errors.given_name ? 'border-red-700' : 'border-green-700/30'"
+                            class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none">
+                        <template x-if="errors.given_name">
+                            <span class="text-red-700 italic text-[10px] mt-1 ml-1">{{ $errors->first('given_name') }}</span>
+                        </template>
                     </div>
 
                     <div class="flex flex-col">
                         <label class="text-xs font-bold text-gray-700 mb-1 ml-1">
                             Middle Name <span class="text-gray-400 font-normal italic lowercase">(optional)</span>
                         </label>
-                        <input type="text" name="middle_name" value="{{ old('middle_name') }}" placeholder="Middle Name" 
-                               class="w-full px-4 py-3 rounded-xl border-2 border-green-700/30 bg-white/50 focus:bg-white outline-none transition-all placeholder-gray-400">
+
+                        <input type="text" name="middle_name" value="{{ old('middle_name') }}" 
+                            placeholder="Middle Name" 
+                            @input="errors.middle_name = false"
+                            :class="errors.middle_name ? 'border-red-700' : 'border-green-700/30'"
+                            class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none">
+
+                        <template x-if="errors.middle_name">
+                            <span class="text-red-700 italic text-[10px] mt-1 ml-1">
+                                {{ $errors->first('middle_name') }}
+                            </span>
+                        </template>
                     </div>
                 </div>
 
-                <div class="flex flex-col relative">
-                    <label class="text-xs font-bold text-gray-700 mb-1 ml-1 flex justify-between items-center">
-                        <span>Date of Birth</span>
-                        <template x-if="errors.dob">
-                            <span class="text-red-700 italic text-[10px]">Required.</span>
-                        </template>
-                    </label>
+                <div class="flex flex-col">
+                    <label class="text-xs font-bold text-gray-700 mb-1 ml-1">Date of Birth</label>
                     <div class="relative">
                         <input type="date" name="dob" value="{{ old('dob') }}"
-                               @change="errors.dob = false"
-                               :class="errors.dob ? 'border-red-700' : 'border-green-700/30'"
-                               class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none text-gray-600 appearance-none">
+                            @change="errors.dob = false"
+                            :class="errors.dob ? 'border-red-700' : 'border-green-700/30'"
+                            class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none text-gray-600 appearance-none">
                         <div class="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-900" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                         </div>
                     </div>
+                    <template x-if="errors.dob">
+                        <span class="text-red-700 italic text-[10px] mt-1 ml-1">{{ $errors->first('dob') }}</span>
+                    </template>
                 </div>
 
                 <div class="flex flex-col" x-data="{ show: false }">
-                    <label class="text-xs font-bold text-gray-700 mb-1 ml-1 flex justify-between items-center">
-                        <span>Password</span>
-                        <template x-if="errors.password">
-                            <span class="text-red-700 italic text-[10px]">Required.</span>
-                        </template>
-                    </label>
+                    <label class="text-xs font-bold text-gray-700 mb-1 ml-1">Password</label>
                     <div class="relative">
-                        <input :type="show ? 'text' : 'password'" name="password" placeholder="Your Password" 
-                               @input="errors.password = false"
-                               :class="errors.password ? 'border-red-700' : 'border-green-700/30'"
-                               class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none pr-12">
+                        <input :type="show ? 'text' : 'password'" name="password" 
+                            @input="errors.password = false"
+                            :class="errors.password ? 'border-red-700' : 'border-green-700/30'"
+                            class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none pr-12">
                         
-                        <button type="button" @click="show = !show" class="absolute inset-y-0 right-0 pr-4 flex items-center text-blue-900 transition-colors">
-                            <svg x-show="!show" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                            <svg x-show="show" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.025 10.025 0 014.132-5.403m5.417-1.071A10.05 10.05 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.403m-5.417 1.071L17.25 17.25M3.75 3.75l16.5 16.5" />
-                            </svg>
+                        <button type="button" @click="show = !show" class="absolute inset-y-0 right-0 pr-4 flex items-center text-blue-900">
+                            <svg x-show="!show" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                            <svg x-show="show" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.025 10.025 0 014.132-5.403m5.417-1.071A10.05 10.05 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.403m-5.417 1.071L17.25 17.25M3.75 3.75l16.5 16.5" /></svg>
                         </button>
                     </div>
+                    <template x-if="errors.password">
+                        <span class="text-red-700 italic text-[10px] mt-1 ml-1">{{ $errors->first('password') }}</span>
+                    </template>
                 </div>
 
                 <div class="pt-4">
@@ -144,6 +142,7 @@
                     </button>
                 </div>
             </form>
+
         </div>
     </div>
 </body>
