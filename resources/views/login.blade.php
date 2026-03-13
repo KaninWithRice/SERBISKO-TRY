@@ -41,7 +41,7 @@
 
             @if($errors->has('message'))
                 <div class="bg-red-100 border-l-4 border-red-700 text-red-700 p-4 mb-6 rounded-r-xl shadow-sm">
-                    <p class="font-bold text-sm">Access Denied / Session Expired</p>
+                    <p class="font-bold text-sm">Access Denied</p>
                     <p class="text-xs">{{ $errors->first('message') }}</p>
                 </div>
             @endif

@@ -2,19 +2,16 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\SoftDeletes; // Keep this!
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    // Cleaned up: Combined all traits into one line
     use HasFactory, Notifiable, SoftDeletes;
-    use HasFactory, Notifiable;
 
-    protected $dates = ['deleted_at'];
     /**
      * The attributes that are mass assignable.
      *
@@ -50,6 +47,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'deleted_at' => 'datetime', // Better way to handle the soft delete timestamp
+            'birthday' => 'date',       // Optional: helps when formatting DOB in Blade
         ];
     }
 }

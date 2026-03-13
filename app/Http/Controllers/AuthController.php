@@ -12,8 +12,8 @@ use Illuminate\Validation\Rules\Password;
 class AuthController extends Controller
 {
     public function login(Request $request)
-    {
-        // 1. Backend Validation
+        {
+        // 1. Validation (remains the same)
         $request->validate([
             'last_name' => 'required|string',
             'given_name' => 'required|string',
@@ -26,11 +26,12 @@ class AuthController extends Controller
             'password.required' => 'Required.',
         ]);
 
-        // 2. Build the query for a full match (including Middle Name logic)
-        $query = User::where('last_name', $request->last_name)
+        // 2. Find user including soft-deleted accounts
+        // We use withTrashed() so we can still "see" revoked accounts for verification
+        $query = User::withTrashed()
+            ->where('last_name', $request->last_name)
             ->where('first_name', $request->given_name)
-            ->where('birthday', $request->dob)
-            ->whereNull('deleted_at');
+            ->where('birthday', $request->dob);
 
         if ($request->filled('middle_name')) {
             $query->where('middle_name', $request->middle_name);
@@ -42,36 +43,37 @@ class AuthController extends Controller
 
         $user = $query->first();
 
-        // 3. Handle Identity Failure
+        // 3. Identity Verification Fail
         if (!$user) {
-            // Check if the user exists ignoring the middle name
-            $partialMatch = User::where('last_name', $request->last_name)
+            // IMPORTANT: Add withTrashed() here too!
+            $partialMatch = User::withTrashed() 
+                ->where('last_name', $request->last_name)
                 ->where('first_name', $request->given_name)
                 ->where('birthday', $request->dob)
-                ->whereNull('deleted_at')
                 ->exists();
 
             if ($partialMatch) {
-                // Logic: Identity is correct, but Middle Name input vs DB value mismatched
-                return back()->withErrors([
-                    'middle_name' => 'Please enter your middle name.'
-                ])->withInput($request->except('password'));
+                return back()->withErrors(['middle_name' => 'Please enter your middle name.'])
+                            ->withInput($request->except('password'));
             }
 
-            // Generic error for all other identity failures
-            return back()->withErrors([
-                'message' => 'The information provided does not match our records.'
-            ])->withInput($request->except('password'));
+            return back()->withErrors(['message' => 'The information provided does not match our records.'])
+                        ->withInput($request->except('password'));
         }
 
-        // 4. Password Verification
+        // 4. Password Verification (Verify credentials before checking if revoked)
         if (!Hash::check($request->password, $user->password)) {
-            return back()->withErrors([
-                'password' => 'Incorrect password.'
-            ])->withInput($request->except('password'));
+            return back()->withErrors(['password' => 'Incorrect password.'])->withInput($request->except('password'));
         }
 
-        // 5. Success - Authenticate and Session management
+        // 5. Check if Account is Revoked (Soft Deleted)
+        if ($user->trashed()) {
+            return back()
+                ->withErrors(['message' => 'Your account access has been REVOKED. Please contact the system administrator.'])
+                ->withInput($request->except('password'));
+        }
+
+        // 6. Success - Authenticate and Session management
         Auth::login($user);
         $role = strtolower($user->role); 
 
