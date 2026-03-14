@@ -10,14 +10,26 @@ use Illuminate\Support\Facades\Log;
 
 class ScanController extends Controller
 {
+    private function getPrefix($docType) {
+        $lowerDoc = strtolower($docType);
+        if (str_contains($lowerDoc, 'report') || str_contains($lowerDoc, 'sf9')) return 'sf9';
+        if (str_contains($lowerDoc, 'birth') || str_contains($lowerDoc, 'psa')) return 'psa';
+        if (str_contains($lowerDoc, 'enrollment') || str_contains($lowerDoc, 'form')) return 'enroll_form';
+        if (str_contains($lowerDoc, 'als') || str_contains($lowerDoc, 'alternative')) return 'als_cert';
+        if (str_contains($lowerDoc, 'affidavit') || str_contains($lowerDoc, 'sworn')) return 'affidavit';
+        return 'sf9'; // Fallback
+    }
+
     public function processDocument(Request $request)
     {
         try {
             set_time_limit(0); 
             
             $imageData = $request->input('image_data');
-            $docType = $request->input('document_type', 'Report Card');
+            $docType = $request->input('document_type', 'Report Card (SF9)');
             $userId = session('user_id', 1);
+
+            Log::info("--- START processDocument ---", ['userId' => $userId, 'docType' => $docType]);
 
             if (!$imageData || strpos($imageData, ';base64,') === false) {
                 return response()->json(['status' => 'error', 'message' => 'Image data is invalid.']);
@@ -35,47 +47,48 @@ class ScanController extends Controller
             Storage::disk('public')->put($filePath, $imageBase64);
             $imageFullPath = storage_path('app/public/' . $filePath);
 
-            $scanId = DB::table('scans')->insertGetId([
-                'user_id'       => $userId,
-                'document_type' => $docType,
-                'file_path'     => $filePath,
-                'status'        => 'pending',
-                'created_at'    => now(),
-                'updated_at'    => now()
-            ]);
+            $prefix = $this->getPrefix($docType);
+
+            // Update Kiosk Enrollment with the new file path and initial status
+            DB::table('kiosk_enrollments')->updateOrInsert(
+                ['id' => $userId],
+                [
+                    "{$prefix}_path" => $filePath,
+                    "{$prefix}_status" => 'pending',
+                    "{$prefix}_remarks" => 'Processing...',
+                    'latest_scan_type' => $docType,
+                    'latest_scan_status' => 'pending',
+                    'latest_scan_remarks' => 'Processing...',
+                    'updated_at' => now()
+                ]
+            );
 
             // --- HELPER: Handles failures and checks for 3rd strike ---
-            $handleFailure = function($remarks) use ($userId, $docType, $scanId) {
-                // Count any attempt that wasn't successfully verified by AI
-                $previousAttempts = DB::table('scans')
-                    ->where('user_id', $userId)
-                    ->where('document_type', $docType)
-                    ->whereIn('status', ['failed', 'manual_verification', 'manual_approved', 'manual_declined'])
-                    ->where('id', '!=', $scanId)
-                    ->count();
+            $handleFailure = function($remarks) use ($userId, $docType, $prefix) {
+                $enrollment = DB::table('kiosk_enrollments')->where('id', $userId)->first();
+                $attemptsCol = "{$prefix}_attempts";
+                $newAttempts = ($enrollment->$attemptsCol ?? 0) + 1;
 
-                $totalAttempts = $previousAttempts + 1;
+                $status = ($newAttempts >= 3) ? 'manual_verification' : 'failed';
+                $finalRemarks = ($newAttempts >= 3) ? 'Sent to Admin for Manual Verification.' : $remarks;
 
-                if ($totalAttempts >= 3) { 
-                    DB::table('scans')->where('id', $scanId)->update([
-                        'status' => 'manual_verification',
-                        'remarks' => 'Sent to Admin for Manual Verification.'
-                    ]);
-                    return ['is_strike_3' => true, 'count' => $totalAttempts];
-                } else {
-                    DB::table('scans')->where('id', $scanId)->update([
-                        'status' => 'failed',
-                        'remarks' => $remarks
-                    ]);
-                    return ['is_strike_3' => false, 'count' => $totalAttempts];
-                }
+                DB::table('kiosk_enrollments')->where('id', $userId)->update([
+                    "{$prefix}_status" => $status,
+                    "{$prefix}_remarks" => $finalRemarks,
+                    "{$prefix}_attempts" => $newAttempts,
+                    'latest_scan_status' => $status,
+                    'latest_scan_remarks' => $finalRemarks
+                ]);
+
+                Log::warning("Failure handled", ['userId' => $userId, 'attempts' => $newAttempts, 'status' => $status]);
+                return ['is_strike_3' => ($newAttempts >= 3), 'count' => $newAttempts];
             };
 
             // --- 1. Dynamic Document Classification ---
             $lowerDoc = strtolower($docType);
             if (str_contains($lowerDoc, 'report') || str_contains($lowerDoc, 'sf9')) $pythonDocType = 'report_card';
             elseif (str_contains($lowerDoc, 'birth') || str_contains($lowerDoc, 'psa')) $pythonDocType = 'birth_certificate';
-            elseif (str_contains($lowerDoc, 'enrollment') || str_contains($lowerDoc, 'form')) $pythonDocType = 'enrollment_form';
+            elseif (str_contains($lowerDoc, 'enrollment') || str_contains($lowerDoc, 'form')) $pythonDocType = 'enroll_form';
             elseif (str_contains($lowerDoc, 'als') || str_contains($lowerDoc, 'alternative')) $pythonDocType = 'als_certificate';
             elseif (str_contains($lowerDoc, 'affidavit') || str_contains($lowerDoc, 'sworn')) $pythonDocType = 'affidavit';
             elseif (str_contains($lowerDoc, 'moral')) $pythonDocType = 'good_moral';
@@ -86,119 +99,137 @@ class ScanController extends Controller
             $expectedFirstName = $user->first_name ?? 'Unknown';
             $expectedLastName = $user->last_name ?? 'Unknown';
 
+            Log::info("Sending to OCR Server", ['url' => 'http://127.0.0.1:9001/ocr']);
+
             try {
                 $ocrResponse = Http::timeout(180)
                     ->attach('image', file_get_contents($imageFullPath), $fileName)
                     ->post('http://127.0.0.1:9001/ocr', [
                         'doc_type'   => $pythonDocType,
-                        'scan_id'    => $scanId,
+                        'scan_id'    => $userId,
                         'first_name' => $expectedFirstName,
                         'last_name'  => $expectedLastName
                     ]);
 
                 if ($ocrResponse->failed()) {
-                    $failure = $handleFailure('OCR Server Error');
-                    if ($failure['is_strike_3']) {
-                        return response()->json(['status' => 'success', 'redirect' => '/student/verifying']);
-                    }
-                    return response()->json(['status' => 'error', 'message' => 'OCR Server Error', 'attempts' => $failure['count']]);
+                    Log::error("OCR HTTP Request failed");
+                    $handleFailure('OCR Server Error');
+                    return response()->json(['status' => 'success', 'redirect' => '/student/verifying']);
                 }
 
                 $ocrResult = $ocrResponse->json();
+                Log::info("OCR Response received", ['result' => $ocrResult]);
                 
                 if (isset($ocrResult['success']) && $ocrResult['success'] === false) {
-                    $failure = $handleFailure($ocrResult['error'] ?? 'Document Rejected.');
-                    if ($failure['is_strike_3']) {
-                        return response()->json(['status' => 'success', 'redirect' => '/student/verifying']);
-                    }
-                    return response()->json(['status' => 'error', 'message' => $ocrResult['error'] ?? 'Invalid Type', 'attempts' => $failure['count']]);
+                    $handleFailure($ocrResult['error'] ?? 'Document Rejected.');
+                    return response()->json(['status' => 'success', 'redirect' => '/student/verifying']);
                 }
 
                 if (isset($ocrResult['success']) && $ocrResult['success'] === true) {
-                    if ($pythonDocType === 'report_card') {
-                        $lrn = $ocrResult['lrn'] ?? null;
-                        if ($lrn) {
-                            DB::table('scans')->where('id', $scanId)->update(['lrn' => $lrn, 'remarks' => 'Sending to LIS...']);
-                            
-                            // --- NEW BRIDGE LOGIC START ---
-                            // 1. Get the enrolling grade from session first (for speed)
-                            $enrollingGrade = session('grade_level');
+                    $lrn = $ocrResult['lrn'] ?? null;
+                    $isReportCard = (str_contains(strtolower($docType), 'report') || str_contains(strtolower($docType), 'sf9'));
+                    
+                    if ($lrn && $isReportCard) {
+                        Log::info("LRN Found & Doc is Report Card. Preparing LIS call.");
+                        
+                        DB::table('kiosk_enrollments')->where('id', $userId)->update([
+                            'sf9_lrn' => $lrn, 
+                            'sf9_remarks' => 'Sending to LIS...',
+                            'student_lrn' => $lrn,
+                            'latest_scan_remarks' => 'Sending to LIS...',
+                            'updated_at' => now()
+                        ]);
+                        
+                        $enrollingGrade = session('grade_level');
+                        if (!$enrollingGrade) {
+                            $enrollingGrade = DB::table('kiosk_enrollments')->where('id', $userId)->value('grade_level') ?? '11'; 
+                        }
+                        $expectedGrade = ($enrollingGrade == '12') ? 'Grade 11' : 'Grade 10';
 
-                            // 2. If session is empty, look up the database using the LRN bridge
-                            if (!$enrollingGrade) {
-                                $enrollingGrade = DB::table('kiosk_enrollments')
-                                    ->where('student_lrn', $lrn)
-                                    ->value('grade_level') ?? '11'; // Default to 11 if totally missing
-                            }
+                        // Dynamically determine the callback URL based on the current request
+                        $callbackUrl = $request->getSchemeAndHttpHost() . '/api/lis-callback'; 
+                        
+                        Log::info("Triggering LIS Verifier", [
+                            'lrn' => $lrn,
+                            'expectedGrade' => $expectedGrade,
+                            'callback' => $callbackUrl
+                        ]);
 
-                            // 3. Logic: If entering 12, check Grade 11. If entering 11, check Grade 10.
-                            $expectedGrade = ($enrollingGrade == '12') ? 'Grade 11' : 'Grade 10';
-                            // --- NEW BRIDGE LOGIC END ---
-
-                            try {
-                                Http::timeout(10)->post('http://127.0.0.1:5001/verify', [
-                                    'lrn' => $lrn,
-                                    'expected_grade' => $expectedGrade,
-                                    'webhook_url' => url('/api/lis-callback'), 
-                                    'scan_id' => $scanId
-                                ]);
-                            } catch (\Exception $e) {
-                                $failure = $handleFailure('LIS Verifier is offline.');
-                                if ($failure['is_strike_3']) {
-                                    return response()->json(['status' => 'success', 'redirect' => '/student/verifying']);
-                                }
-                                return response()->json(['status' => 'error', 'message' => 'LIS Verifier is offline.', 'attempts' => $failure['count']]);
-                            }
-                        } else {
-                            $failure = $handleFailure('Report Card verified, but no LRN found.');
-                            if ($failure['is_strike_3']) {
-                                return response()->json(['status' => 'success', 'redirect' => '/student/verifying']);
-                            }
-                            return response()->json(['status' => 'error', 'message' => 'Report Card verified, but no LRN found.', 'attempts' => $failure['count']]);
+                        try {
+                            $lisResponse = Http::timeout(10)->post('http://127.0.0.1:5001/verify', [
+                                'lrn' => $lrn,
+                                'expected_grade' => $expectedGrade,
+                                'webhook_url' => $callbackUrl, 
+                                'scan_id' => $userId
+                            ]);
+                            Log::info("LIS Server hit successfully", ['status' => $lisResponse->status()]);
+                        } catch (\Exception $e) {
+                            Log::error("LIS Trigger Error", ['error' => $e->getMessage()]);
+                            $handleFailure('LIS Verifier is offline.');
                         }
                     } else {
-                        DB::table('scans')->where('id', $scanId)->update(['status' => 'verified', 'remarks' => 'Verified']);
+                        Log::info("Document verified without LIS (Non-Report Card or missing LRN)");
+                        DB::table('kiosk_enrollments')->where('id', $userId)->update([
+                            "{$prefix}_status" => 'verified',
+                            "{$prefix}_remarks" => 'Verified',
+                            'latest_scan_status' => 'verified',
+                            'latest_scan_remarks' => 'Verified',
+                            'updated_at' => now()
+                        ]);
                     }
                 }
 
             } catch (\Exception $e) {
-                $failure = $handleFailure('AI Engine Offline');
-                if ($failure['is_strike_3']) {
-                    return response()->json(['status' => 'success', 'redirect' => '/student/verifying']);
-                }
-                return response()->json(['status' => 'error', 'message' => 'AI Engine Offline', 'attempts' => $failure['count']]);
+                Log::error("OCR Exception", ['error' => $e->getMessage()]);
+                $handleFailure('AI Engine Offline');
             }
 
             return response()->json(['status' => 'success', 'redirect' => '/student/verifying']);
 
         } catch (\Exception $e) {
+            Log::error("FATAL ERROR in processDocument", [
+                'msg' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
             return response()->json(['status' => 'error', 'message' => 'System Error.']);
         }
     }
 
     public function lisCallback(Request $request)
     {
-        $scanId = $request->input('scan_id');
+        $userId = $request->input('scan_id');
         $status = $request->input('result'); 
         
-        if ($scanId && $status) {
-            // If LIS fails, we also need to route it through the 3-strike check
-            if ($status === 'failed') {
-                $scan = DB::table('scans')->where('id', $scanId)->first();
-                if($scan) {
-                    $failedCount = DB::table('scans')
-                        ->where('user_id', $scan->user_id)
-                        ->where('document_type', $scan->document_type)
-                        ->where('status', 'failed')
-                        ->count();
-                    
-                    if ($failedCount >= 2) {
-                        $status = 'manual_verification';
-                    }
-                }
-            }
+        Log::info("LIS Callback received", ['userId' => $userId, 'status' => $status]);
 
-            DB::table('scans')->where('id', $scanId)->update(['status' => $status, 'updated_at' => now()]);
+        if ($userId && $status) {
+            $finalStatus = ($status === 'verified_lis') ? 'verified' : 'failed';
+            
+            if ($finalStatus === 'failed') {
+                $enrollment = DB::table('kiosk_enrollments')->where('id', $userId)->first();
+                $newAttempts = ($enrollment->sf9_attempts ?? 0) + 1;
+                
+                $dbStatus = ($newAttempts >= 3) ? 'manual_verification' : 'failed';
+                $remarks = ($newAttempts >= 3) ? 'Sent to Admin for Manual Verification.' : 'LIS Verification Failed.';
+
+                DB::table('kiosk_enrollments')->where('id', $userId)->update([
+                    'sf9_status' => $dbStatus,
+                    'sf9_remarks' => $remarks,
+                    'sf9_attempts' => $newAttempts,
+                    'latest_scan_status' => $dbStatus,
+                    'latest_scan_remarks' => $remarks,
+                    'updated_at' => now()
+                ]);
+            } else {
+                DB::table('kiosk_enrollments')->where('id', $userId)->update([
+                    'sf9_status' => 'verified',
+                    'sf9_remarks' => 'Verified',
+                    'latest_scan_status' => 'verified',
+                    'latest_scan_remarks' => 'Verified',
+                    'updated_at' => now()
+                ]);
+            }
             return response()->json(['success' => true]);
         }
         return response()->json(['success' => false], 400);
@@ -206,35 +237,40 @@ class ScanController extends Controller
     
     public function checkScanStatus()
     {
-        $userId = session('user_id', 1);
-        $studentStatus = session('student_status', 'Regular'); 
+        $userId = session('user_id');
+        if (!$userId) return response()->json(['status' => 'error', 'message' => 'Session expired.']);
+
+        $enrollment = DB::table('kiosk_enrollments')->where('id', $userId)->first();
+
+        if (!$enrollment) return response()->json(['status' => 'pending']);
+
+        return response()->json([
+            'status' => $enrollment->latest_scan_status ?? 'pending',
+            'remarks' => $enrollment->latest_scan_remarks,
+            'next_url' => $this->getNextUrl($userId),
+            'current_doc' => session('current_doc', 'Report Card (SF9)')
+        ]);
+    }
+
+    private function getNextUrl($userId) {
+        $studentStatusRaw = session('student_status', 'regular'); 
         $currentDoc = session('current_doc', 'Report Card (SF9)');
 
         $tracks = [
-            'Regular'    => ['Report Card (SF9)', 'Birth Certificate', 'Enrollment Form'],
-            'ALS'        => ['ALS Certificate', 'Enrollment Form', 'Birth Certificate', 'Affidavit'],
-            'Transferee' => ['Report Card (SF9)', 'Birth Certificate', 'Affidavit', 'Enrollment Form'],
-            'Balik-Aral' => ['Report Card (SF9)', 'Birth Certificate', 'Affidavit', 'Enrollment Form'],
+            'regular'    => ['Report Card (SF9)', 'Birth Certificate', 'Enrollment Form'],
+            'als'        => ['ALS Certificate', 'Enrollment Form', 'Birth Certificate', 'Affidavit'],
+            'transferee' => ['Report Card (SF9)', 'Birth Certificate', 'Affidavit', 'Enrollment Form'],
+            'balik_aral' => ['Report Card (SF9)', 'Birth Certificate', 'Affidavit', 'Enrollment Form'],
         ];
 
-        $docList = $tracks[$studentStatus] ?? $tracks['Regular'];
+        $statusKey = strtolower($studentStatusRaw);
+        $docList = $tracks[$statusKey] ?? $tracks['regular'];
         $currentIndex = array_search($currentDoc, $docList);
-        $nextUrl = '/student/thankyou'; 
-
+        
         if ($currentIndex !== false && isset($docList[$currentIndex + 1])) {
-            $nextDoc = $docList[$currentIndex + 1];
-            $nextUrl = '/student/capture?doc=' . urlencode($nextDoc);
+            return '/student/capture?doc=' . urlencode($docList[$currentIndex + 1]);
         }
 
-        $latestScan = DB::table('scans')->where('user_id', $userId)->orderBy('id', 'desc')->first();
-
-        if (!$latestScan) return response()->json(['status' => 'pending']);
-
-        return response()->json([
-            'status' => $latestScan->status,
-            'remarks' => $latestScan->remarks,
-            'next_url' => $nextUrl,
-            'current_doc' => $currentDoc
-        ]);
+        return '/student/thankyou';
     }
 }

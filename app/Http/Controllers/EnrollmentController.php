@@ -9,42 +9,45 @@ use Illuminate\Support\Facades\Log;
 
 class EnrollmentController extends Controller
 {
-    // Helper to get LRN since it's used in every method
-    private function getStudentLrn() {
-        $student = DB::table('students')->where('user_id', session('user_id'))->first();
-        return $student->lrn ?? null;
+    private function getUserId() {
+        return session('user_id');
     }
 
     public function saveGrade(Request $request) {
         $request->validate(['grade_level' => 'required|in:11,12']);
-        $lrn = $this->getStudentLrn();
+        $userId = $this->getUserId();
         
-        if (!$lrn) return back()->withErrors(['error' => 'No student record found.']);
+        if (!$userId) return redirect('/login')->withErrors(['error' => 'Session expired.']);
 
         session(['grade_level' => $request->grade_level]);
+        
         DB::table('kiosk_enrollments')->updateOrInsert(
-            ['student_lrn' => $lrn],
-            ['grade_level' => $request->grade_level, 'updated_at' => now()]
+            ['id' => $userId],
+            [
+                'grade_level' => $request->grade_level, 
+                'updated_at' => now(),
+                'started_at' => DB::raw('IFNULL(started_at, NOW())')
+            ]
         );
 
         return redirect('/student/status-selection');
     }
 
     public function saveStatus(Request $request) {
-        $lrn = $this->getStudentLrn();
+        $userId = $this->getUserId();
         session(['student_status' => $request->student_status]);
         
-        DB::table('kiosk_enrollments')->where('student_lrn', $lrn)
-            ->update(['student_status' => $request->student_status]);
+        DB::table('kiosk_enrollments')->where('id', $userId)
+            ->update(['academic_status' => $request->student_status]);
 
         return redirect('/student/track-selection');
     }
 
     public function saveTrack(Request $request) {
-        $lrn = $this->getStudentLrn();
+        $userId = $this->getUserId();
         session(['track' => $request->track]);
         
-        DB::table('kiosk_enrollments')->where('student_lrn', $lrn)
+        DB::table('kiosk_enrollments')->where('id', $userId)
             ->update(['track' => $request->track]);
 
         return redirect('/student/cluster-selection');
@@ -52,12 +55,12 @@ class EnrollmentController extends Controller
 
     public function saveCluster(Request $request) {
         $cluster = $request->input('cluster');
-        $lrn = $this->getStudentLrn();
+        $userId = $this->getUserId();
         session(['cluster' => $cluster]);
 
         // Update Database
-        DB::table('kiosk_enrollments')->where('student_lrn', $lrn)
-            ->update(['cluster_choice' => $cluster]);
+        DB::table('kiosk_enrollments')->where('id', $userId)
+            ->update(['cluster' => $cluster]);
 
         // Arduino Physical Triggers
         try {
@@ -71,18 +74,18 @@ class EnrollmentController extends Controller
     }
 
     public function saveChecklist(Request $request) {
-    $studentStatus = session('student_status', 'Regular'); 
-    $statusKey = strtolower($studentStatus);
-    
-    $firstDocs = [
-        'regular'    => 'Report Card (SF9)',
-        'als'        => 'ALS Certificate',
-        'transferee' => 'Report Card (SF9)',
-        'balik-aral' => 'Report Card (SF9)'
-    ];
-    
-    session(['current_doc' => $firstDocs[$statusKey] ?? 'Report Card (SF9)']);
-    return redirect('/student/capture');
+        $studentStatus = session('student_status', 'Regular'); 
+        $statusKey = strtolower($studentStatus);
+        
+        $firstDocs = [
+            'regular'    => 'Report Card (SF9)',
+            'als'        => 'ALS Certificate',
+            'transferee' => 'Report Card (SF9)',
+            'balik-aral' => 'Report Card (SF9)'
+        ];
+        
+        session(['current_doc' => $firstDocs[$statusKey] ?? 'Report Card (SF9)']);
+        return redirect('/student/capture');
     }
 
     public function showCapture(Request $request) {

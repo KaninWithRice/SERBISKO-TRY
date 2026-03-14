@@ -49,21 +49,21 @@ class AdminController extends Controller
         $totalRegistrations = $applyFilter(DB::table('students')
             ->join('users', 'students.user_id', '=', 'users.id') 
             ->whereNull('users.deleted_at')
-            ->leftJoin('kiosk_enrollments', 'students.lrn', '=', 'kiosk_enrollments.student_lrn')
+            ->leftJoin('kiosk_enrollments', 'users.id', '=', 'kiosk_enrollments.id')
             ->leftJoin('pre_enrollments', 'students.lrn', '=', 'pre_enrollments.student_lrn'))
             ->count();
 
         $totalSubmissions = $applyFilter(DB::table('students')
             ->join('users', 'students.user_id', '=', 'users.id')
             ->whereNull('users.deleted_at')
-            ->join('kiosk_enrollments', 'students.lrn', '=', 'kiosk_enrollments.student_lrn')
+            ->join('kiosk_enrollments', 'users.id', '=', 'kiosk_enrollments.id')
             ->leftJoin('pre_enrollments', 'students.lrn', '=', 'pre_enrollments.student_lrn'))
             ->count();
 
         $totalEnrolled = $applyFilter(DB::table('students')
             ->join('users', 'students.user_id', '=', 'users.id')
             ->whereNull('users.deleted_at')
-            ->join('kiosk_enrollments', 'students.lrn', '=', 'kiosk_enrollments.student_lrn')
+            ->join('kiosk_enrollments', 'users.id', '=', 'kiosk_enrollments.id')
             ->leftJoin('pre_enrollments', 'students.lrn', '=', 'pre_enrollments.student_lrn')
             ->where('kiosk_enrollments.academic_status', '=', 'Officially Enrolled')) 
             ->count();
@@ -88,7 +88,7 @@ class AdminController extends Controller
                 ->join('users', 'students.user_id', '=', 'users.id')
                 ->whereNull('users.deleted_at')
                 ->join('pre_enrollments', 'students.lrn', '=', 'pre_enrollments.student_lrn')
-                ->leftJoin('kiosk_enrollments', 'students.lrn', '=', 'kiosk_enrollments.student_lrn')
+                ->leftJoin('kiosk_enrollments', 'users.id', '=', 'kiosk_enrollments.id')
                 ->where(function($q) use ($elective, $fullString) {
                     $q->where('kiosk_enrollments.cluster', $elective)
                     ->orWhere(function($sub) use ($fullString) {
@@ -100,8 +100,7 @@ class AdminController extends Controller
         }
 
         $recentKioskQuery = DB::table('kiosk_enrollments')
-            ->join('students', 'kiosk_enrollments.student_lrn', '=', 'students.lrn')
-            ->join('users', 'students.user_id', '=', 'users.id')
+            ->join('users', 'kiosk_enrollments.id', '=', 'users.id')
             ->whereNull('users.deleted_at')
             ->select(
                 'users.first_name', 'users.middle_name', 'users.last_name',
@@ -147,10 +146,10 @@ class AdminController extends Controller
     public function students(Request $request)
     {
         $query = DB::table('users')
-            ->join('students', 'users.id', '=', 'students.user_id')
+            ->leftJoin('students', 'users.id', '=', 'students.user_id')
             ->whereNull('users.deleted_at')
             ->leftJoin('pre_enrollments', 'students.lrn', '=', 'pre_enrollments.student_lrn')
-            ->leftJoin('kiosk_enrollments', 'students.lrn', '=', 'kiosk_enrollments.student_lrn')
+            ->leftJoin('kiosk_enrollments', 'users.id', '=', 'kiosk_enrollments.id')
             ->where('users.role', 'student')
             ->select(
                 'users.first_name', 'users.last_name', 'users.middle_name',
@@ -260,7 +259,7 @@ class AdminController extends Controller
             ->join('users', 'students.user_id', '=', 'users.id')
             ->whereNull('users.deleted_at')
             ->leftJoin('pre_enrollments', 'students.lrn', '=', 'pre_enrollments.student_lrn')
-            ->leftJoin('kiosk_enrollments', 'students.lrn', '=', 'kiosk_enrollments.student_lrn') 
+            ->leftJoin('kiosk_enrollments', 'users.id', '=', 'kiosk_enrollments.id') 
             ->select(
                 'users.first_name', 'users.last_name','users.extension_name', 'users.middle_name', 'users.birthday', 
                 'students.*', 'pre_enrollments.responses',
@@ -322,31 +321,57 @@ class AdminController extends Controller
     // 5. ADMIN MANUAL VERIFICATION LOGIC
     public function verification()
     { 
-        $pendingScans = DB::table('scans')
-            ->join('users', 'scans.user_id', '=', 'users.id')
+        $enrollments = DB::table('kiosk_enrollments')
+            ->join('users', 'kiosk_enrollments.id', '=', 'users.id')
             ->whereNull('users.deleted_at')
             ->leftJoin('students', 'users.id', '=', 'students.user_id')
-            ->leftJoin('kiosk_enrollments as ke', 'students.lrn', '=', 'ke.student_lrn')
             ->leftJoin('pre_enrollments as pe', 'students.lrn', '=', 'pe.student_lrn')
             ->select(
-                'scans.*', 
+                'kiosk_enrollments.*', 
                 'users.first_name', 
                 'users.last_name',
-                'ke.grade_level as kiosk_grade',
                 'pe.responses'
             )
-            ->where('scans.status', 'manual_verification')
-            ->orderBy('scans.created_at', 'asc')
-            ->get()
-            ->map(function($scan) {
-                if ($scan->kiosk_grade) {
-                    $scan->display_grade = $scan->kiosk_grade;
-                } else {
-                    $details = json_decode($scan->responses, true) ?? [];
-                    $scan->display_grade = $details['Grade Level to Enroll'] ?? '—';
+            ->where(function($q) {
+                $q->where('sf9_status', 'manual_verification')
+                  ->orWhere('psa_status', 'manual_verification')
+                  ->orWhere('enroll_form_status', 'manual_verification')
+                  ->orWhere('als_cert_status', 'manual_verification')
+                  ->orWhere('affidavit_status', 'manual_verification');
+            })
+            ->get();
+
+        $pendingScans = collect();
+
+        foreach ($enrollments as $row) {
+            $docTypes = [
+                'sf9' => 'Report Card (SF9)',
+                'psa' => 'Birth Certificate',
+                'enroll_form' => 'Enrollment Form',
+                'als_cert' => 'ALS Certificate',
+                'affidavit' => 'Affidavit'
+            ];
+
+            foreach ($docTypes as $prefix => $docName) {
+                $statusCol = "{$prefix}_status";
+                if ($row->$statusCol === 'manual_verification') {
+                    $pathCol = "{$prefix}_path";
+                    
+                    $details = json_decode($row->responses, true) ?? [];
+                    $displayGrade = $row->grade_level ?? ($details['Grade Level to Enroll'] ?? '—');
+
+                    $pendingScans->push((object)[
+                        'id' => $row->id . ':' . $prefix, 
+                        'first_name' => $row->first_name,
+                        'last_name' => $row->last_name,
+                        'display_grade' => $displayGrade,
+                        'document_type' => $docName,
+                        'file_path' => $row->$pathCol,
+                        'created_at' => $row->updated_at 
+                    ]);
                 }
-                return $scan;
-            });
+            }
+        }
 
         if (request()->ajax()) {
             return view('admin.partials.verification-table', compact('pendingScans'))->render();
@@ -357,14 +382,22 @@ class AdminController extends Controller
 
     public function handleVerificationAction(Request $request) 
     {
-        $scanId = $request->input('scan_id');
+        $idAndPrefix = $request->input('scan_id'); // Format: "userId:prefix"
         $action = $request->input('action'); 
+        
+        $parts = explode(':', $idAndPrefix);
+        if (count($parts) !== 2) return back()->with('error', 'Invalid verification action.');
+        
+        $userId = $parts[0];
+        $prefix = $parts[1];
 
-        $status = ($action === 'approve') ? 'manual_approved' : 'manual_declined';
+        $finalStatus = ($action === 'approve') ? 'verified' : 'failed';
 
-        DB::table('scans')->where('id', $scanId)->update([
-            'status' => $status,
-            'remarks' => 'Manually ' . $action . 'd by Admin'
+        DB::table('kiosk_enrollments')->where('id', $userId)->update([
+            "{$prefix}_status" => $finalStatus,
+            "{$prefix}_remarks" => 'Manually ' . $action . 'd by Admin',
+            'latest_scan_status' => $finalStatus,
+            'latest_scan_remarks' => 'Manually ' . $action . 'd by Admin'
         ]);
 
         return back()->with('success', 'Document has been ' . $action . 'd.');
@@ -408,7 +441,6 @@ class AdminController extends Controller
             'extension_name' => 'nullable|string|max:10',
             'birthday'       => 'required|date',
             'role'           => 'required|string|in:admin,administrator,facilitator,super_admin',
-            // Changed to sometimes/nullable so you don't overwrite with a blank hash
             'password'       => 'sometimes|nullable|string|min:8',
         ]);
 
@@ -435,14 +467,12 @@ class AdminController extends Controller
                 return back()->with('info', 'This user is already active in the system.');
             }
 
-            // Prepare the update array
             $updateData = [
                 'middle_name'    => $validated['middle_name'],
                 'extension_name' => $validated['extension_name'],
                 'role'           => $finalRole,
             ];
 
-            // ONLY hash and update password if the admin actually typed one in
             if ($request->filled('password')) {
                 $updateData['password'] = Hash::make($request->password);
             }
@@ -450,7 +480,6 @@ class AdminController extends Controller
             $user->update($updateData);
 
         } else {
-            // If it's a NEW user, you DO need a password
             if (!$request->filled('password')) {
                 return back()->withErrors(['password' => 'A password is required for new users.']);
             }
@@ -519,6 +548,7 @@ class AdminController extends Controller
             $client->addScope(\Google\Service\Sheets::SPREADSHEETS_READONLY);
 
             $service = new \Google\Service\Sheets($client);
+            $spreadsheetId = '1pUdqUbAMQEZ4Kg2V6A05orHY9xnDCJLp2QWLQaXXmSk'; 
             $response = $service->spreadsheets_values->get($spreadsheetId, $range);
             $values = $response->getValues();
 

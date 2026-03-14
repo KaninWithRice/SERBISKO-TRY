@@ -109,15 +109,14 @@ Route::get('/student/verifying', function () {
 Route::get('/student/check-scan-status', [ScanController::class, 'checkScanStatus']);
 
 Route::get('/api/check-completion', function () {
-    $record = DB::table('scans')
-                ->where('user_id', session('user_id', 1)) 
-                ->latest()
+    $record = DB::table('kiosk_enrollments')
+                ->where('id', session('user_id', 1)) 
                 ->first();
     
     if (!$record) {
         return response()->json(['status' => 'not_found']);
     }
-    return response()->json(['status' => $record->status]);
+    return response()->json(['status' => $record->latest_scan_status]);
 });
 
 Route::get('/student/mismatch', function () {

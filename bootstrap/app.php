@@ -13,7 +13,6 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         // Register your new presence tracking middleware
         $middleware->web(append: [
-                \App\Http\Middleware\CheckAdmin::class,
                 \App\Http\Middleware\MarkUserAsOnline::class, // Add this line here
         ]);
 
