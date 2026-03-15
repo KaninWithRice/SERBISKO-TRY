@@ -231,15 +231,23 @@
             // Send via fetch API to read Python response without reloading page
             try {
                 const formData = new FormData(uploadForm);
+                
+                // Increase browser timeout for this specific heavy request
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+
                 const response = await fetch(uploadForm.action, {
                     method: 'POST',
                     body: formData,
+                    signal: controller.signal,
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',
                         'Accept': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                     }
                 });
+                
+                clearTimeout(timeoutId);
 
                 // If Laravel redirects us on success (e.g., to /student/verifying)
                 if (response.redirected) {
@@ -269,7 +277,12 @@
                 console.error("Upload Error:", error);
                 loadingPopup.classList.add('hidden');
                 errorPopup.classList.remove('hidden');
-                errorMessageLabel.textContent = "Server connection failed. Please try again.";
+                
+                if (error.name === 'AbortError') {
+                    errorMessageLabel.textContent = "Request timed out. The document is too complex or the connection is slow. Please try again.";
+                } else {
+                    errorMessageLabel.textContent = "Server connection failed. Please ensure the AI Engine is online.";
+                }
             }
         });
 

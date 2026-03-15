@@ -55,6 +55,7 @@
 
     <div id="error-card" class="bg-white p-10 rounded-3xl shadow-2xl text-center max-w-lg w-full hidden absolute transform transition-all duration-500 scale-95 opacity-0">
         <h2 class="text-3xl font-bold text-red-700 mb-2">Scanning Incomplete</h2>
+        <p id="attempt-info" class="text-blue-900 font-bold text-sm mb-4"></p>
         <p id="error-message" class="text-gray-600 mb-8 font-medium">Please reposition the document.</p>
         <button onclick="window.location.href='/student/capture'" class="bg-blue-900 text-white font-bold py-3 px-8 rounded-full shadow-md hover:bg-blue-800 w-full">TRY AGAIN</button>
     </div>
@@ -105,6 +106,7 @@
                         clearInterval(pollInterval);
                         showCard('error-card');
                         if(data.remarks) document.getElementById('error-message').innerText = data.remarks;
+                        if(data.attempts) document.getElementById('attempt-info').innerText = "Attempt " + data.attempts + " of 3";
                     }
                 })
                 .catch(err => console.error("Error checking status:", err));

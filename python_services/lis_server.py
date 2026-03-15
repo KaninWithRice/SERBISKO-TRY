@@ -3,8 +3,8 @@ from flask_cors import CORS
 import threading, requests, time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.firefox.service import Service
+from webdriver_manager.firefox import GeckoDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import urllib3
@@ -25,9 +25,10 @@ def run_check(lrn, expected_grade, webhook, scan_id):
     driver = None
     
     try:
-        options = webdriver.ChromeOptions()
-        options.add_experimental_option("detach", True) 
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        options = webdriver.FirefoxOptions()
+        # options.add_argument("--headless") # Uncomment if you want to run without window
+        
+        driver = webdriver.Firefox(service=Service(GeckoDriverManager().install()), options=options)
         
         driver.get(LIS_URL)
         

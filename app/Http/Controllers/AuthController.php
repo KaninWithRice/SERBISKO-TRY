@@ -85,7 +85,14 @@ class AuthController extends Controller
             return redirect('/dashboard'); 
         }
         
-        return redirect('/student/grade-selection');
+        // Check for existing enrollment to determine redirect
+        $hasEnrollment = \Illuminate\Support\Facades\DB::table('kiosk_enrollments')
+            ->where('id', $user->id)
+            ->exists();
+
+        return $hasEnrollment 
+            ? redirect('/student/checklist') 
+            : redirect('/student/grade-selection');
     }
 
     public function logout(Request $request)

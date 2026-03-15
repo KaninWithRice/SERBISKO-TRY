@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
 Route::get('/', function () {return view('login');})->name('home');
 Route::get('/login', function () {return view('login');})->name('login');
 Route::post('/login', [AuthController::class, 'login']);
-Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+Route::match(['get', 'post'], '/logout', [AuthController::class, 'logout'])->name('logout');
 /*
 |--------------------------------------------------------------------------
 | ADMIN ROUTES (Protected via CheckAdmin)
@@ -88,10 +88,7 @@ Route::get('/student/cluster-loading', function () {
     return view('student.cluster_loading');
 });
 
-Route::get('/student/checklist', function () {
-    if (!session()->has('user_id')) return redirect('/');
-    return view('student.checklist');
-});
+Route::get('/student/checklist', [EnrollmentController::class, 'showChecklist']);
 
 // Replace the old checklist closure
 Route::post('/student/save-checklist', [EnrollmentController::class, 'saveChecklist']);
@@ -122,11 +119,6 @@ Route::get('/api/check-completion', function () {
 Route::get('/student/mismatch', function () {
     if (!session()->has('user_id')) return redirect('/');
     return view('student.mismatch'); 
-});
-
-Route::get('/student/dashboard', function () {
-    if (!session()->has('user_id')) return redirect('/');
-    return "<h1>Enrollment Data Saved! Welcome to your Dashboard.</h1>";
 });
 
 Route::get('/student/thankyou', function () {

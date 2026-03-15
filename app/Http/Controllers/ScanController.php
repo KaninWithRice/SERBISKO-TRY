@@ -17,6 +17,8 @@ class ScanController extends Controller
         if (str_contains($lowerDoc, 'enrollment') || str_contains($lowerDoc, 'form')) return 'enroll_form';
         if (str_contains($lowerDoc, 'als') || str_contains($lowerDoc, 'alternative')) return 'als_cert';
         if (str_contains($lowerDoc, 'affidavit') || str_contains($lowerDoc, 'sworn')) return 'affidavit';
+        if (str_contains($lowerDoc, 'moral')) return 'good_moral';
+        if (str_contains($lowerDoc, '137') || str_contains($lowerDoc, 'sf10')) return 'sf10';
         return 'sf9'; // Fallback
     }
 
@@ -244,33 +246,34 @@ class ScanController extends Controller
 
         if (!$enrollment) return response()->json(['status' => 'pending']);
 
+        $docType = session('current_doc', 'Report Card (SF9)');
+        $prefix = $this->getPrefix($docType);
+        $attemptsCol = "{$prefix}_attempts";
+        $attempts = $enrollment->$attemptsCol ?? 0;
+
         return response()->json([
             'status' => $enrollment->latest_scan_status ?? 'pending',
             'remarks' => $enrollment->latest_scan_remarks,
             'next_url' => $this->getNextUrl($userId),
-            'current_doc' => session('current_doc', 'Report Card (SF9)')
+            'current_doc' => $docType,
+            'attempts' => $attempts
         ]);
     }
 
     private function getNextUrl($userId) {
-        $studentStatusRaw = session('student_status', 'regular'); 
-        $currentDoc = session('current_doc', 'Report Card (SF9)');
+        $selectedDocs = session('docs_to_scan', []);
+        $currentDoc = session('current_doc');
 
-        $tracks = [
-            'regular'    => ['Report Card (SF9)', 'Birth Certificate', 'Enrollment Form'],
-            'als'        => ['ALS Certificate', 'Enrollment Form', 'Birth Certificate', 'Affidavit'],
-            'transferee' => ['Report Card (SF9)', 'Birth Certificate', 'Affidavit', 'Enrollment Form'],
-            'balik_aral' => ['Report Card (SF9)', 'Birth Certificate', 'Affidavit', 'Enrollment Form'],
-        ];
-
-        $statusKey = strtolower($studentStatusRaw);
-        $docList = $tracks[$statusKey] ?? $tracks['regular'];
-        $currentIndex = array_search($currentDoc, $docList);
-        
-        if ($currentIndex !== false && isset($docList[$currentIndex + 1])) {
-            return '/student/capture?doc=' . urlencode($docList[$currentIndex + 1]);
+        if (!empty($selectedDocs)) {
+            $currentIndex = array_search($currentDoc, $selectedDocs);
+            if ($currentIndex !== false && isset($selectedDocs[$currentIndex + 1])) {
+                $nextDoc = $selectedDocs[$currentIndex + 1];
+                session(['current_doc' => $nextDoc]);
+                return '/student/capture?doc=' . urlencode($nextDoc);
+            }
         }
 
-        return '/student/thankyou';
+        // If no more selected docs, go back to the Checklist (where they can see status)
+        return '/student/checklist';
     }
 }

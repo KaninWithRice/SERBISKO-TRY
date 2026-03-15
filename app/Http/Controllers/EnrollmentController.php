@@ -73,19 +73,94 @@ class EnrollmentController extends Controller
         return redirect('/student/cluster-loading');
     }
 
+    private function getRequiredDocs($status) {
+        $status = strtolower($status ?? 'regular');
+        if ($status === 'als') {
+            return [
+                'ALS Certificate of Rating' => 'als_cert',
+                'Enrollment Form' => 'enroll_form',
+                'PSA Birth Certificate' => 'psa',
+                'Affidavit of Undertaking' => 'affidavit'
+            ];
+        } elseif ($status === 'transferee' || $status === 'balik_aral') {
+            return [
+                'Report Card (SF9)' => 'sf9',
+                'PSA Birth Certificate' => 'psa',
+                'Affidavit of Undertaking' => 'affidavit',
+                'Enrollment Form' => 'enroll_form'
+            ];
+        } else {
+            return [
+                'Report Card (SF9)' => 'sf9',
+                'PSA Birth Certificate' => 'psa',
+                'Enrollment Form' => 'enroll_form'
+            ];
+        }
+    }
+
+    public function showChecklist() {
+        $userId = $this->getUserId();
+        if (!$userId) return redirect('/login');
+
+        $enrollment = DB::table('kiosk_enrollments')->where('id', $userId)->first();
+        if (!$enrollment) {
+            Log::warning("Checklist reached without enrollment record", ['userId' => $userId]);
+            return redirect('/student/grade-selection');
+        }
+
+        $status = $enrollment->academic_status ?? 'regular';
+        $requiredDocs = $this->getRequiredDocs($status);
+        
+        Log::info("Showing Checklist", ['userId' => $userId, 'status' => $status]);
+        
+        return view('student.checklist', compact('enrollment', 'requiredDocs'));
+    }
+
     public function saveChecklist(Request $request) {
-        $studentStatus = session('student_status', 'Regular'); 
-        $statusKey = strtolower($studentStatus);
+        $selectedDocs = $request->input('documents', []);
+        $userId = $this->getUserId();
         
-        $firstDocs = [
-            'regular'    => 'Report Card (SF9)',
-            'als'        => 'ALS Certificate',
-            'transferee' => 'Report Card (SF9)',
-            'balik-aral' => 'Report Card (SF9)'
-        ];
+        Log::info("Checklist Submitted", ['userId' => $userId, 'selected' => $selectedDocs]);
+
+        if (empty($selectedDocs)) {
+            return back()->withErrors(['error' => 'Please select at least one document.']);
+        }
+
+        $enrollment = DB::table('kiosk_enrollments')->where('id', $userId)->first();
         
-        session(['current_doc' => $firstDocs[$statusKey] ?? 'Report Card (SF9)']);
+        // Filter out docs that are already verified or pending manual review
+        $toScan = [];
+        foreach ($selectedDocs as $docName) {
+            $prefix = $this->getPrefix($docName);
+            $statusCol = $prefix . '_status';
+            $status = $enrollment->$statusCol ?? 'pending';
+            
+            if ($status !== 'verified' && $status !== 'manual_verification') {
+                $toScan[] = $docName;
+            }
+        }
+
+        if (empty($toScan)) {
+            return back()->withErrors(['error' => 'All selected documents are already submitted.']);
+        }
+
+        // Store only the NEW docs to scan in session
+        session(['docs_to_scan' => $toScan]);
+        session(['current_doc' => $toScan[0]]);
+        
         return redirect('/student/capture');
+    }
+
+    private function getPrefix($docType) {
+        $lowerDoc = strtolower($docType);
+        if (str_contains($lowerDoc, 'report') || str_contains($lowerDoc, 'sf9')) return 'sf9';
+        if (str_contains($lowerDoc, 'birth') || str_contains($lowerDoc, 'psa')) return 'psa';
+        if (str_contains($lowerDoc, 'enrollment') || str_contains($lowerDoc, 'form')) return 'enroll_form';
+        if (str_contains($lowerDoc, 'als') || str_contains($lowerDoc, 'alternative')) return 'als_cert';
+        if (str_contains($lowerDoc, 'affidavit') || str_contains($lowerDoc, 'sworn')) return 'affidavit';
+        if (str_contains($lowerDoc, 'moral')) return 'good_moral';
+        if (str_contains($lowerDoc, '137') || str_contains($lowerDoc, 'sf10')) return 'sf10';
+        return 'sf9'; // Fallback
     }
 
     public function showCapture(Request $request) {
