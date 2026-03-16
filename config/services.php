@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'google' => [
+    'service_account_email' => env('GOOGLE_SERVICE_ACCOUNT_EMAIL', 'your-default-email@iam.gserviceaccount.com'),
+    ],
+
 ];

@@ -65,6 +65,7 @@
                     <div class="flex flex-col">
                         <label class="text-xs font-bold text-gray-700 mb-1 ml-1">Last Name</label>
                         <input type="text" name="last_name" value="{{ old('last_name') }}" 
+                            placeholder="Last Name"
                             @input="errors.last_name = false"
                             :class="errors.last_name ? 'border-red-700' : 'border-green-700/30'"
                             class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none">
@@ -76,6 +77,7 @@
                     <div class="flex flex-col">
                         <label class="text-xs font-bold text-gray-700 mb-1 ml-1">Given Name</label>
                         <input type="text" name="given_name" value="{{ old('given_name') }}"
+                            placeholder="Given Name"
                             @input="errors.given_name = false"
                             :class="errors.given_name ? 'border-red-700' : 'border-green-700/30'"
                             class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none">
@@ -125,6 +127,7 @@
                     <label class="text-xs font-bold text-gray-700 mb-1 ml-1">Password</label>
                     <div class="relative">
                         <input :type="show ? 'text' : 'password'" name="password" 
+                            placeholder="Password"
                             @input="errors.password = false"
                             :class="errors.password ? 'border-red-700' : 'border-green-700/30'"
                             class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none pr-12">

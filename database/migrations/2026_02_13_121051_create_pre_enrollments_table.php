@@ -11,28 +11,26 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('pre_enrollments', function (Blueprint $table) {
-            $table->id(); // Internal enrollment ID
-            
-            // Link to the student using their LRN
-            $table->string('student_lrn');
-            
-            // Set up the relationship: If the student is deleted, their form is too
-            $table->foreign('student_lrn')
-                  ->references('lrn')
-                  ->on('students')
-                  ->onDelete('cascade');
+    Schema::create('pre_enrollments', function (Blueprint $table) {
+        $table->id(); // Internal enrollment ID
+        
+        // 1. Link to the student using the NEW auto-increment ID
+        // This replaces the student_lrn string
+        $table->foreignId('student_id')
+                ->constrained('students')
+                ->onDelete('cascade');
 
-            // The Flexible JSON Column for the rest of the Google Form answers
-            $table->json('responses'); 
-            
-            // Track the application status (e.g., Pending, Verified, Done)
-            $table->string('status')->default('Pending'); 
-            
-            $table->timestamps();
-        });
+        $table->integer('submission_version')->default(1);
+        
+        // 2. The Flexible JSON Column
+        $table->json('responses'); 
+        
+        // 3. Track the status
+        $table->string('status')->default('Pending'); 
+        
+        $table->timestamps();
+    });
     }
-
     /**
      * Reverse the migrations.
      */

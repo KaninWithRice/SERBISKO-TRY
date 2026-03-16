@@ -13,13 +13,22 @@ return new class extends Migration
     {
         Schema::create('sync_histories', function (Blueprint $table) {
             $table->id();
-            $table->integer('records_synced')->default(0);
+            
+            // Core Identity
+            $table->string('school_year')->nullable(); 
+            
+            // Statistics
+            $table->integer('records_synced')->default(0); // Total (New + Updated)
+            $table->integer('new_records')->default(0);
+            $table->integer('updated_records')->default(0);
+            
+            // Status & Timestamps
             $table->string('status')->default('Success');
             $table->timestamp('created_at')->useCurrent();
-            // We use timestamps() or just created_at since your controller 
-            // specifically calls for 'created_at' in the orderBy clause.
+            $table->timestamp('updated_at')->nullable();
         });
     }
+
     /**
      * Reverse the migrations.
      */

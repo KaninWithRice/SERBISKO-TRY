@@ -4,7 +4,7 @@
 
 @section('content')
 
-<div class="max-w-full mx-auto p-4 space-y-6 font-sans">
+<div class="max-w-full mx-auto p-4 space-y-6 font-inter">
 
     <div class="bg-[#F7FBF9]/40 rounded-2xl shadow-lg border-l-8 border-[#1a8a44] overflow-hidden relative">
         <div class="p-8 pl-12 flex justify-between items-start">

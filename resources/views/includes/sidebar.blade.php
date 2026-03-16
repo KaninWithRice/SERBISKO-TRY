@@ -59,7 +59,7 @@
                     <a href="{{ route('admin.verification') }}" class="flex items-center gap-10 px-4 py-3 text-[#003918] font-semibold rounded-xl hover:bg-[#00923F]/5 transition-colors group {{ isActive('admin.verification') }}">
                         <div class="w-6 flex justify-center shrink-0">
                             <svg class="w-6 h-6 fill-current opacity-80 group-hover:opacity-100" viewBox="0 0 24 24">
-                                <path d="M8 2a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8.36a2 2 0 0 0-.46-1.28l-2.28-2.74l-1.55-1.69A2 2 0 0 0 15.23 2zm10.7 6l-1.95-2.34l-1.25-1.36V7a1 1 0 0 0 1 1z"/>
+                                <path fill="currentColor" d="M14 2.01H6a1.997 1.997 0 0 0-1.99 2l-.01 16a1.997 1.997 0 0 0 1.99 2H18a2.006 2.006 0 0 0 2-2v-12Zm.863 14.958l-.9 1.557a.236.236 0 0 1-.279.099l-1.125-.45a3.3 3.3 0 0 1-.756.44l-.17 1.189a.23.23 0 0 1-.226.189h-1.8a.224.224 0 0 1-.225-.19l-.17-1.187a3 3 0 0 1.216.19l.171 1.188a3 3 0 0 1 .765.44l1.116-.45a.23.23 0 0 1 .28.1l.9 1.557a.234.234 0 0 1-.055.288l-.954.747a2.4 2.4 0 0 1 .036.44a4 4 0 0 1-.036.442l.963.747a.234.234 0 0 1 .054.288M13 9.01v-5.5l5.5 5.5Z" />
                             </svg>
                         </div>
                         <span>Verification</span>
@@ -67,13 +67,14 @@
                 </li>
 
                 <li>
-                    <a href="{{ route('admin.requirementhub') }}" class="flex items-center gap-10 px-4 py-3 text-[#003918] font-semibold rounded-xl hover:bg-[#00923F]/5 transition-colors group {{ isActive('admin.requirementhub') }}">
+                    <a href="{{ route('admin.settings.show') }}" class="flex items-center gap-10 px-4 py-3 text-[#003918] font-semibold rounded-xl hover:bg-[#00923F]/5 transition-colors group {{ isActive('admin.syncconfiguration') }}">
                         <div class="w-6 flex justify-center shrink-0">
                             <svg class="w-6 h-6 fill-current opacity-80 group-hover:opacity-100" viewBox="0 0 24 24">
-                                <path d="M15.25 2h-6.5A6.76 6.76 0 0 0 2 8.75v6.5A6.75 6.75 0 0 0 8.75 22h6.5A6.75 6.75 0 0 0 22 15.25v-6.5A6.76 6.76 0 0 0 15.25 2M8.04 17.48a1.37 1.37 0 1 1 1.37-1.37a1.36 1.36 0 0 1-1.37 1.37m0-4.11A1.37 1.37 0 1 1 9.41 12a1.36 1.36 0 0 1-1.37 1.42zm0-4.11a1.37 1.37 0 1 1 1.37-1.37a1.36 1.36 0 0 1-1.37 1.37m8.15 7.6h-4.52a.75.75 0 1 1 0-1.5h4.52a.75.75 0 1 1 0 1.5m0-4.11h-4.52a.75.75 0 1 1 0-1.5h4.52a.75.75 0 1 1 0 1.5m0-4.11h-4.52a.75.75 0 0 1 0-1.5h4.52a.75.75 0 1 1 0 1.5" />
+                                <path fill="currentColor" d="M10.507 14.142a1.35 1.35 0 1 0 1.35 1.35a1.35 1.35 0 0 0-1.35-1.35" />
+                                <path fill="currentColor" d="M14 2.01H6a1.997 1.997 0 0 0-1.99 2l-.01 16a1.997 1.997 0 0 0 1.99 2H18a2.006 2.006 0 0 0 2-2v-12Zm.863 14.958l-.9 1.557a.236.236 0 0 1-.279.099l-1.125-.45a3.3 3.3 0 0 1-.756.44l-.17 1.189a.23.23 0 0 1-.226.189h-1.8a.224.224 0 0 1-.225-.19l-.17-1.187a3 3 0 0 1-.766-.441l-1.116.45a.23.23 0 0 1-.279-.1l-.9-1.556a.234.234 0 0 1 .054-.288l.954-.747a3.6 3.6 0 0 1 0-.882l-.954-.747a.223.223 0 0 1-.054-.288l.9-1.557a.236.236 0 0 1 .28-.1l1.115.45a3.6 3.6 0 0 1 .765-.44l.171-1.188a.23.23 0 0 1 .225-.19h1.8a.215.215 0 0 1 .216.19l.171 1.188a3 3 0 0 1 .765.44l1.116-.45a.23.23 0 0 1 .28.1l.9 1.557a.234.234 0 0 1-.055.288l-.954.747a2.4 2.4 0 0 1 .036.44a4 4 0 0 1-.036.442l.963.747a.234.234 0 0 1 .054.288M13 9.01v-5.5l5.5 5.5Z" />
                             </svg>
                         </div>
-                        <span class="leading-tight">Academic Hub</span>
+                        <span class="leading-tight">Sync Configuration</span>
                     </a>
                 </li>
 
@@ -85,6 +86,16 @@
                             </svg>
                         </div>
                         <span class="leading-tight">System Sync</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ route('admin.syncconflict') }}" class="flex items-center gap-10 px-4 py-3 text-[#003918] font-semibold rounded-xl hover:bg-[#00923F]/5 transition-colors group {{ isActive('admin.syncconflict') }}">
+                        <div class="w-6 flex justify-center shrink-0">
+                            <<svg class="w-6 h-6 fill-current opacity-80 group-hover:opacity-100" viewBox="0 0 30 30">
+                                <path d="M15.0127 5V1.25L10.0127 6.25L15.0127 11.25V7.5C19.1502 7.5 22.5127 10.8625 22.5127 15C22.5127 16.2625 22.2002 17.4625 21.6377 18.5L23.4627 20.325C24.4755 18.7336 25.0132 16.8863 25.0127 15C25.0127 9.475 20.5377 5 15.0127 5ZM15.0127 22.5C10.8752 22.5 7.5127 19.1375 7.5127 15C7.5127 13.7375 7.8252 12.5375 8.3877 11.5L6.5627 9.675C5.54989 11.2664 5.01217 13.1137 5.0127 15C5.0127 20.525 9.48769 25 15.0127 25V28.75L20.0127 23.75L15.0127 18.75V22.5Z" />
+                            </svg>
+                        </div>
+                        <span class="leading-tight">Sync Conflicts</span>
                     </a>
                 </li>
             </ul>

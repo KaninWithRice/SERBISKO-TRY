@@ -3,7 +3,14 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\AccessController;
+use App\Http\Controllers\Admin\VerificationController;
+use App\Http\Controllers\Admin\RegistrationSyncController;
+use App\Http\Controllers\Admin\StudentController;
+use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\ScanController;
+use App\Http\Controllers\Admin\SyncConflictController;
 use App\Http\Middleware\CheckAdmin;
 use App\Http\Controllers\EnrollmentController;
 use Illuminate\Support\Facades\DB;
@@ -25,29 +32,37 @@ Route::match(['get', 'post'], '/logout', [AuthController::class, 'logout'])->nam
 
 Route::middleware([CheckAdmin::class])->group(function () {
 
-    Route::get('/check-user-status/{id}', [AdminController::class, 'checkUserStatus']);
+    Route::get('/check-user-status/{id}', [DashboardController::class, 'checkUserStatus']);
 
     // Direct Dashboard Access
-    Route::get('/dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
 
     // Prefixed Admin Routes
     Route::prefix('admin')->name('admin.')->group(function () {
-        Route::get('/dashboard', [AdminController::class, 'index'])->name('dashboard');
-        Route::get('/students', [AdminController::class, 'students'])->name('students');
-        Route::get('/students/profile/{lrn}', [AdminController::class, 'profilepage'])->name('studentpage.profilepage'); 
-        Route::get('/systemsync', [AdminController::class, 'systemsync'])->name('systemsync');
-        Route::get('/verification', [AdminController::class, 'verification'])->name('verification');
-        Route::get('/requirementhub', [AdminController::class, 'requirementhub'])->name('requirementhub');
-        Route::get('/accountsettings', [AdminController::class, 'accountsettings'])->name('accountsettings');
-        Route::post('/systemsync/perform', [AdminController::class, 'performSync'])->name('sync.perform');
-        Route::post('/verification/action', [AdminController::class, 'handleVerificationAction'])->name('verification.action');
-        Route::get('/accessmanagement', [AdminController::class, 'accessManagement'])->name('accessmanagement');
-        Route::post('/accessmanagement/store', [AdminController::class, 'storeUser'])->name('accessmanagement.store');
-        Route::delete('/users/{id}', [AdminController::class, 'destroy'])->name('destroyUser');
-        Route::patch('/users/{id}/restore', [AdminController::class, 'restoreUser'])->name('restoreUser'); 
-        Route::patch('/users/{id}/update-role', [AdminController::class, 'updateRole'])->name('updateRole');
+        Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::get('/students', [StudentController::class, 'students'])->name('students');
+        Route::get('/students/profile/{id}', [StudentController::class, 'profilepage'])->name('studentpage.profilepage');
+        Route::get('/systemsync', [RegistrationSyncController::class, 'systemsync'])->name('systemsync');
+        Route::get('/verification', [VerificationController::class, 'verification'])->name('verification');
+        Route::get('/accountsettings', [AccessController::class, 'accountsettings'])->name('accountsettings');
+        Route::get('/accessmanagement', [AccessController::class, 'accessManagement'])->name('accessmanagement');
         Route::get('/settings/security', [AuthController::class, 'showSecurity'])->name('admin.security');
+        Route::post('/systemsync/perform', [RegistrationSyncController::class, 'performSync'])->name('sync.perform');
+        Route::post('/verification/action', [VerificationController::class, 'handleVerificationAction'])->name('verification.action');
+        Route::post('/accessmanagement/store', [AccessController::class, 'storeUser'])->name('accessmanagement.store');
+        Route::delete('/users/{id}', [AccessController::class, 'destroy'])->name('destroyUser');
+        Route::patch('/users/{id}/restore', [AccessController::class, 'restoreUser'])->name('restoreUser');
+        Route::patch('/users/{id}/update-role', [AccessController::class, 'updateRole'])->name('updateRole');
         Route::put('/account/update-password', [AuthController::class, 'updatePassword'])->name('account.update-password');
+        Route::put('/students/update/{id}', [StudentController::class, 'updateStudentProfile'])->name('students.update');
+        Route::get('/settings', [SettingsController::class, 'showSettings'])->name('settings.show');
+        Route::post('/settings/update', [SettingsController::class, 'updateSettings'])->name('settings.save');
+        Route::post('/settings/refresh-headers', [SettingsController::class, 'refreshHeaders'])->name('settings.refresh');
+        Route::get('/settings/mapping', [SettingsController::class, 'showMapping'])->name('settings.mapping');
+        Route::post('/settings/mapping/update', [SettingsController::class, 'updateMapping'])->name('settings.mapping.save');
+        Route::get('/conflicts', [SyncConflictController::class, 'index'])->name('syncconflict');
+        Route::post('/conflicts/{id}/resolve', [SyncConflictController::class, 'resolve'])->name('admin.conflicts.resolve');
+
     });
 });
 

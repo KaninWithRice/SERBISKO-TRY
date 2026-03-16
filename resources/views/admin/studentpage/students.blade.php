@@ -11,7 +11,7 @@
 
     <div class="relative flex items-center w-full">
         <input type="text" 
-               id="studentSearchInput" {{-- CRITICAL: Added ID for JS --}}
+               id="studentSearchInput" 
                name="search" 
                value="{{ request('search') }}"
                placeholder="Search Name or LRN" 
@@ -47,7 +47,7 @@
 
         @include('admin.studentpage.partials.filter-bar')
 
-        <div class="mt-4"> {{-- This is the container the AJAX swaps --}}
+        <div class="mt-4"> {{-- This wrapper is targeted for AJAX replacement --}}
             @include('admin.studentpage.partials.student-table')
         </div>
     </div>
