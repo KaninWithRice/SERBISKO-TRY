@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\User;
-use App\Models\SystemSetting;
+use App\Models\CustomForm;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -16,16 +16,10 @@ class SampleStudentSeeder extends Seeder
     {
         $faker = Faker::create();
 
-        // 0. Ensure System Settings exist
+        // 0. Ensure Active Year exists
         $activeSY = '2025-2026';
-        SystemSetting::updateOrCreate(
-            ['id' => 1],
-            [
-                'active_school_year' => $activeSY,
-                'active_sheet_range' => 'Form Responses 1!A1:ZZ',
-                'public_form_url' => 'https://docs.google.com/forms/sample',
-            ]
-        );
+        // (Optional) You could ensure a CustomForm exists here if needed.
+
 
         // Clean up before seeding
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
@@ -61,7 +55,7 @@ class SampleStudentSeeder extends Seeder
                 'middle_name' => $middleName,
                 'birthday' => $birthday,
                 'role' => 'student',
-                'password' => Hash::make('password'),
+                'password' => 'password',
             ]);
 
             $lrn = "10000000000" . ($index + 1);
@@ -103,7 +97,7 @@ class SampleStudentSeeder extends Seeder
                 'middle_name' => $faker->lastName,
                 'birthday' => $faker->date('Y-m-d', '2008-12-31'),
                 'role' => 'student',
-                'password' => Hash::make('password'),
+                'password' => 'password',
             ]);
 
             $lrn = "20000000000" . ($index + 1);

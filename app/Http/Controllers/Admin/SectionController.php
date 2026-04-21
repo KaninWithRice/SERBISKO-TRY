@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Section;
-use App\Models\SystemSetting;
+use App\Models\CustomForm;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -12,8 +12,8 @@ class SectionController extends Controller
 {
     public function index()
     {
-        $settings = SystemSetting::first();
-        $activeSY = $settings ? $settings->active_school_year : '2025-2026';
+        $settings = CustomForm::latest()->first();
+        $activeSY = $settings ? $settings->school_year : '2025-2026';
         
         $sections = Section::orderBy('academic_year', 'desc')
             ->orderBy('grade_level', 'asc')

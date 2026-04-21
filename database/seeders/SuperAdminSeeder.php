@@ -17,7 +17,7 @@ class SuperAdminSeeder extends Seeder
             'extension_name' => null,
             'birthday'       => '2000-01-01', // Placeholder birthday
             'role'           => 'super_admin',
-            'password'       => Hash::make('admin123'), // Change this immediately after login
+            'password'       => 'admin123', // Change this immediately after login
         ]);
     }
 }

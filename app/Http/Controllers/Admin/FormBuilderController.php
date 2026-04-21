@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CustomForm;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -53,6 +54,7 @@ class FormBuilderController extends Controller
                 'description' => ['stringValue'  => $form->description ?? ''],
                 'schema'      => ['stringValue'  => json_encode($form->schema)],
                 'share_token' => ['stringValue'  => $form->share_token],
+                'school_year' => ['stringValue'  => $form->school_year ?? '2026-2027'],
                 'updated_at'  => ['stringValue'  => now()->toIso8601String()],
             ],
         ];
@@ -89,7 +91,7 @@ class FormBuilderController extends Controller
         }
     }
 
-    // ── Shared validation rules ─────────────────────────────────────────────
+    // ── Validation rules ────────────────────────────────────────────────────
 
     private function questionRules(): array
     {
@@ -97,30 +99,60 @@ class FormBuilderController extends Controller
             'questions'                => 'required|array|min:1',
             'questions.*.label'        => 'required|string|max:255',
             'questions.*.field_id'     => ['required', 'string', 'max:60', 'regex:/^[a-z_]+$/'],
-            'questions.*.type'         => 'required|in:text,number,date',
+            'questions.*.type'         => 'required|in:text,number,date,dropdown,radio,checkbox,section',
             'questions.*.required'     => 'boolean',
             'questions.*.validation'   => 'required|in:none,numeric_only,lrn_format',
             'questions.*.placeholder'  => 'nullable|string|max:255',
+            // options array for choice-based types
+            'questions.*.options'      => 'nullable|array',
+            'questions.*.options.*'    => 'nullable|string|max:255',
+            // branching: per-option jump target
+            'questions.*.branch'       => 'nullable|array',
+            'questions.*.branch.*'     => 'nullable|string|max:20',
         ];
     }
 
     /**
-     * CRITICAL: question `id` is set to `field_id` (e.g. "lrn", "first_name").
-     * The Student View uses question.id as the Firestore document key, so
-     * sync.js will find raw.lrn, raw.first_name at the top level — exactly
-     * where processDocument() reads them.
+     * Build schema array from validated question data.
+     *
+     * For choice-based questions (dropdown, radio, checkbox), options are
+     * stored as objects: { value: "...", branch: "..." }
+     * Branch value is either a question index (string), "__end__", or "" (next).
+     *
+     * For section breaks, field_id is auto-generated since it's never submitted.
+     *
+     * CRITICAL: id == field_id for all non-section questions so the Student
+     * View writes answers to the correct top-level Firestore keys for sync.js.
      */
     private function buildSchema(array $questions): array
     {
-        return collect($questions)->map(function ($q) {
+        return collect($questions)->map(function ($q, $i) {
+            $type = $q['type'];
+            $isSection = $type === 'section';
+            $isChoice  = in_array($type, ['dropdown', 'radio', 'checkbox']);
+
+            // Build options with branch info for choice questions
+            $options = [];
+            if ($isChoice && ! empty($q['options'])) {
+                foreach ($q['options'] as $oi => $optVal) {
+                    $options[] = [
+                        'value'  => trim($optVal ?? ''),
+                        'branch' => $q['branch'][$oi] ?? '',
+                    ];
+                }
+                // Strip empty options
+                $options = array_values(array_filter($options, fn($o) => $o['value'] !== ''));
+            }
+
             return [
-                'id'          => $q['field_id'],
-                'field_id'    => $q['field_id'],
+                'id'          => $isSection ? ('section_' . $i) : $q['field_id'],
+                'field_id'    => $isSection ? ('section_' . $i) : $q['field_id'],
                 'label'       => $q['label'],
-                'type'        => $q['type'],
-                'required'    => (bool) ($q['required'] ?? false),
-                'validation'  => $q['validation'],
+                'type'        => $type,
+                'required'    => $isSection ? false : (bool) ($q['required'] ?? false),
+                'validation'  => $isSection ? 'none' : ($q['validation'] ?? 'none'),
                 'placeholder' => $q['placeholder'] ?? null,
+                'options'     => $options,
             ];
         })->values()->all();
     }
@@ -129,7 +161,7 @@ class FormBuilderController extends Controller
 
     public function index()
     {
-        $forms = CustomForm::where('created_by', auth()->id())
+        $forms = CustomForm::where('created_by', Auth::id())
             ->latest()
             ->paginate(20);
 
@@ -147,14 +179,16 @@ class FormBuilderController extends Controller
             [
                 'title'       => 'required|string|max:255',
                 'description' => 'nullable|string|max:1000',
+                'school_year' => 'required|string|max:20',
             ],
             $this->questionRules()
         ));
 
         $form = CustomForm::create([
-            'created_by'  => auth()->id(),
+            'created_by'  => Auth::id(),
             'title'       => $data['title'],
             'description' => $data['description'] ?? null,
+            'school_year' => $data['school_year'],
             'schema'      => $this->buildSchema($data['questions']),
             'share_token' => Str::random(32),
         ]);
@@ -190,6 +224,7 @@ class FormBuilderController extends Controller
             [
                 'title'       => 'required|string|max:255',
                 'description' => 'nullable|string|max:1000',
+                'school_year' => 'required|string|max:20',
             ],
             $this->questionRules()
         ));
@@ -197,9 +232,11 @@ class FormBuilderController extends Controller
         $form->update([
             'title'       => $data['title'],
             'description' => $data['description'] ?? null,
+            'school_year' => $data['school_year'],
             'schema'      => $this->buildSchema($data['questions']),
         ]);
 
+        // Always re-push on update; cache:clear not needed since token is cached separately
         $fsDocId = $this->pushToFirestore($form->fresh());
         if ($fsDocId && ! $form->firestore_doc_id) {
             $form->update(['firestore_doc_id' => $fsDocId]);

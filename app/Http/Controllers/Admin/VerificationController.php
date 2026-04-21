@@ -32,7 +32,8 @@ class VerificationController extends Controller
             ->get()
             ->map(function($scan) {
                 $details = json_decode($scan->responses, true) ?? [];
-                $scan->display_grade = $scan->kiosk_grade ?? ($details['Grade Level to Enroll'] ?? '—');
+                $rawGrade = $scan->kiosk_grade ?? ($details['Grade Level to Enroll'] ?? '—');
+                $scan->display_grade = is_array($rawGrade) ? implode(', ', $rawGrade) : $rawGrade;
                 return $scan;
             });
 
@@ -57,7 +58,8 @@ class VerificationController extends Controller
         foreach ($enrollmentsWithRejections as $enrollment) {
             $papers = json_decode($enrollment->rejected_papers, true) ?? [];
             $details = json_decode($enrollment->responses, true) ?? [];
-            $displayGrade = $enrollment->kiosk_grade ?? ($details['Grade Level to Enroll'] ?? '—');
+            $rawGrade = $enrollment->kiosk_grade ?? ($details['Grade Level to Enroll'] ?? '—');
+            $displayGrade = is_array($rawGrade) ? implode(', ', $rawGrade) : $rawGrade;
             
             foreach ($papers as $paper) {
                 $rejectedPapers->push((object)[

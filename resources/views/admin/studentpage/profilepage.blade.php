@@ -25,13 +25,19 @@
                 // Logic to create input names...
                 $rawKey = strtolower(str_replace([':', ' ', "'", '#'], ['', '_', '', 'number'], $label));
                 $inputName = $isJson ? "responses[$rawKey]" : $rawKey;
-                $val = $value ?: '';
+                
+                // Handle array values (e.g. from multi-select checkboxes in Google Forms)
+                if (is_array($value)) {
+                    $val = implode(', ', $value);
+                } else {
+                    $val = $value ?: '';
+                }
 
                 $html .= "
                 <div class='relative border-b-2 border-gray-200 pb-1 group hover:border-[#005288] transition-colors duration-200'>
                     <label class='block text-[10px] font-bold text-gray-400 mb-1'>$label</label>
-                    <p x-show='!editing' class='text-[13px] uppercase text-[#003918] min-h-6'>".($val ?: '—')."</p>
-                    <input x-show='editing' type='text' name='$inputName' value='$val' 
+                    <p x-show='!editing' class='text-[13px] uppercase text-[#003918] min-h-6'>".(e($val) ?: '—')."</p>
+                    <input x-show='editing' type='text' name='$inputName' value='".e($val)."' 
                         class='w-full text-[13px] uppercase text-[#005288] bg-white border-none p-0 focus:ring-0 outline-none font-bold'>
                 </div>";
             }
@@ -205,6 +211,11 @@
                             @php 
                                 // Sanitize the current question/key
                                 $rawName = strtolower(str_replace([':', ' ', "'", '#'], ['', '_', '', 'number'], $question)); 
+
+                                // Handle array values (e.g. multi-select checkboxes)
+                                if (is_array($answer)) {
+                                    $answer = implode(', ', $answer);
+                                }
                             @endphp
 
                             {{-- Skip if it's in the Enrolment/Transferee blocklist --}}
@@ -220,7 +231,7 @@
                             {{-- Record this key as "displayed" --}}
                             @php $displayedSanitizedKeys[] = $rawName; @endphp
 
-                            <div class="relative border-b-2 border-gray-200 pb-1 ...">
+                            <div class="relative border-b-2 border-gray-200 pb-1 group hover:border-[#005288] transition-colors duration-200">
                                 <label class="block text-[10px] font-bold text-gray-400 mb-1">
                                     {{-- Make the label pretty even if the key is snake_case --}}
                                     {{ ucwords(str_replace('_', ' ', $question)) }}
@@ -229,7 +240,7 @@
                                 <p x-show="!editing" class="text-[13px] uppercase text-[#003918] min-h-6">{{ $answer ?: '—' }}</p>
                                 
                                 <input x-show="editing" type="text" name="responses[{{ $rawName }}]" value="{{ $answer }}" 
-                                    class="w-full text-[13px] uppercase text-[#005288] ...">
+                                    class="w-full text-[13px] uppercase text-[#005288] bg-white border-none p-0 focus:ring-0 outline-none font-bold">
                             </div>
                         @endforeach
                     </div>
@@ -237,7 +248,12 @@
             @endif
             {{-- Special Info --}}
             @php
-                $status = trim($details['Academic Status'] ?? '');
+                // Use lowercase keys since StudentController lowercases them
+                $rawStatus = $details['academic status'] ?? $details['Academic Status'] ?? '';
+                if (is_array($rawStatus)) {
+                    $rawStatus = implode(', ', $rawStatus);
+                }
+                $status = trim($rawStatus);
                 $isSpecialStatus = str_contains(strtolower($status), 'feree') || str_contains(strtolower($status), 'balik');
             @endphp
 
@@ -245,10 +261,10 @@
                 <div class="lg:col-span-3 bg-[#F7FBF9]/40 rounded-xl shadow-md border border-gray-100 p-7">
                     <h2 class="text-[#005288] text-sm font-extrabold uppercase mb-4">Transferee / Balik-Aral Information</h2>
                     {!! $renderFields([
-                        'Last School Year Completed:' => $details['Last School Year Completed'] ?? '—',
-                        'Last Grade Level Completed:' => $details['Last Grade Level Completed'] ?? '—',
-                        'Last School Attended:'       => $details['Last School Attended'] ?? '—',
-                        'School ID:'                  => $details['School ID'] ?? '—',
+                        'Last School Year Completed:' => $details['last school year completed'] ?? $details['Last School Year Completed'] ?? '—',
+                        'Last Grade Level Completed:' => $details['last grade level completed'] ?? $details['Last Grade Level Completed'] ?? '—',
+                        'Last School Attended:'       => $details['last school attended'] ?? $details['Last School Attended'] ?? '—',
+                        'School ID:'                  => $details['school id'] ?? $details['School ID'] ?? '—',
                     ], 'lg:grid-cols-4', true) !!}
                 </div>
             @endif

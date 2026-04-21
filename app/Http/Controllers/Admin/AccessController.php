@@ -86,7 +86,7 @@ class AccessController extends Controller
                 ];
 
                 if ($request->filled('password')) {
-                    $updateData['password'] = Hash::make($request->password);
+                    $updateData['password'] = $request->password;
                 }
 
                 $user->update($updateData);
@@ -103,7 +103,7 @@ class AccessController extends Controller
                     'extension_name' => $validated['extension_name'],
                     'birthday'       => $validated['birthday'],
                     'role'           => $finalRole,
-                    'password'       => Hash::make($request->password),
+                    'password'       => $request->password,
                 ]);
                 $statusMessage = 'New staff member added successfully!';
             }

@@ -19,6 +19,8 @@ return new class extends Migration
             $table->string('title');
             $table->text('description')->nullable();
 
+            $table->string('school_year', 20)->default('2026-2027');
+
             // JSON array of question objects.
             // Each question's `id` == `field_id` == the sync.js raw.* field name
             // e.g. "lrn", "first_name", "last_name", "birthday"
@@ -41,6 +43,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('custom_forms');
+        if (Schema::hasColumn('custom_forms', 'school_year')) {
+            Schema::table('custom_forms', function (Blueprint $table) {
+                $table->dropColumn('school_year');
+            });
+        }
     }
 };

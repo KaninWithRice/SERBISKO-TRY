@@ -53,8 +53,8 @@ class User extends Authenticatable
      */
     public function activeStudent(): HasOne
     {
-        $settings = SystemSetting::first();
-        $activeSY = $settings ? $settings->active_school_year : null;
+        $settings = CustomForm::latest()->first();
+        $activeSY = $settings ? $settings->school_year : null;
 
         return $this->hasOne(Student::class)->where('school_year', $activeSY);
     }

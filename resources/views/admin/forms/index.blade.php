@@ -41,86 +41,95 @@
         </a>
     </div>
 
-    {{-- Forms Table --}}
-    <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-4 text-left text-xs font-bold text-[#004225] uppercase tracking-widest">Form Title</th>
-                    <th class="px-6 py-4 text-left text-xs font-bold text-[#004225] uppercase tracking-widest">Questions</th>
-                    <th class="px-6 py-4 text-left text-xs font-bold text-[#004225] uppercase tracking-widest">Firestore Sync</th>
-                    <th class="px-6 py-4 text-left text-xs font-bold text-[#004225] uppercase tracking-widest">Last Updated</th>
-                    <th class="px-6 py-4 text-center text-xs font-bold text-[#004225] uppercase tracking-widest">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                @forelse($forms as $form)
-                <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="px-6 py-4">
-                        <p class="font-bold text-[#003918] text-sm">{{ $form->title }}</p>
-                        @if($form->description)
-                            <p class="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{{ $form->description }}</p>
-                        @endif
-                    </td>
-                    <td class="px-6 py-4">
-                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
-                            {{ count($form->schema) }} question(s)
-                        </span>
-                    </td>
-                    <td class="px-6 py-4">
-                        @if($form->firestore_doc_id)
-                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-100">
-                                <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Synced
-                            </span>
-                        @else
-                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-100">
-                                <span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span> Not synced
-                            </span>
-                        @endif
-                    </td>
-                    <td class="px-6 py-4 text-xs text-gray-400 font-medium">
-                        {{ $form->updated_at->format('M d, Y') }}<br>
-                        {{ $form->updated_at->diffForHumans() }}
-                    </td>
-                    <td class="px-6 py-4">
-                        <div class="flex items-center justify-center gap-2">
-                            <a href="{{ route('admin.forms.show', $form) }}"
-                               class="bg-[#00923F] hover:bg-[#004225] text-white px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition shadow-sm">
-                                Share / QR
-                            </a>
-                            <a href="{{ route('admin.forms.edit', $form) }}"
-                               class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition shadow-sm">
-                                Edit
-                            </a>
-                            <form method="POST" action="{{ route('admin.forms.destroy', $form) }}"
-                                  onsubmit="return confirm('Archive this form? It will be soft-deleted.')">
-                                @csrf @method('DELETE')
-                                <button class="bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-600 px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition">
-                                    Archive
-                                </button>
-                            </form>
-                        </div>
-                    </td>
-                </tr>
-                @empty
-                <tr>
-                    <td colspan="5" class="px-6 py-20 text-center">
-                        <div class="flex flex-col items-center justify-center text-gray-400">
-                            <svg class="w-12 h-12 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                      d="M9 12h6M9 16h6M9 8h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+    {{-- Forms Grid --}}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        @forelse($forms as $form)
+            <div class="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 flex flex-col h-full group">
+                {{-- Card Header --}}
+                <div class="p-6 pb-4 flex-grow">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-[#00923F] group-hover:bg-[#00923F] group-hover:text-white transition-colors duration-300">
+                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            <p class="italic text-lg font-medium">No forms yet.</p>
-                            <a href="{{ route('admin.forms.create') }}"
-                               class="mt-3 text-[#00923F] font-bold text-sm hover:underline">
-                                Create your first enrollment form →
-                            </a>
                         </div>
-                    </td>
-                </tr>
-                @endforelse
-            </tbody>
-        </table>
+                        <div class="flex flex-col items-end">
+                            @if($form->firestore_doc_id)
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-100 uppercase tracking-wider">
+                                    <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Synced
+                                </span>
+                            @else
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-100 uppercase tracking-wider">
+                                    <span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span> Offline
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+
+                    <h3 class="text-xl font-bold text-[#333333] mb-2 line-clamp-1 uppercase">{{ $form->title }}</h3>
+                    <p class="text-sm text-[#5F748D] line-clamp-2 min-h-[40px] leading-relaxed">
+                        {{ $form->description ?? 'No description provided for this form.' }}
+                    </p>
+
+                    <div class="mt-6 flex items-center gap-4">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] uppercase font-bold text-[#94A3B8] tracking-widest mb-1">Questions</span>
+                            <span class="text-sm font-bold text-[#003918]">
+                                {{ count($form->schema) }} fields
+                            </span>
+                        </div>
+                        <div class="h-8 w-px bg-gray-100"></div>
+                        <div class="flex flex-col">
+                            <span class="text-[10px] uppercase font-bold text-[#94A3B8] tracking-widest mb-1">Last Update</span>
+                            <span class="text-sm font-bold text-[#003918]">
+                                {{ $form->updated_at->diffForHumans() }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Card Footer Actions --}}
+                <div class="p-6 pt-0 bg-gray-50/50 rounded-b-2xl border-t border-gray-50 mt-auto">
+                    <div class="flex items-center gap-2 pt-4">
+                        <a href="{{ route('admin.forms.show', $form) }}"
+                           class="flex-1 bg-white hover:bg-green-50 text-[#00923F] border border-green-100 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition text-center">
+                            Share / QR
+                        </a>
+                        <a href="{{ route('admin.forms.edit', $form) }}"
+                           class="flex-1 bg-[#00923F] hover:bg-[#004225] text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition text-center shadow-lg shadow-green-100">
+                            Edit
+                        </a>
+                        <form method="POST" action="{{ route('admin.forms.destroy', $form) }}"
+                              onsubmit="return confirm('Archive this form? It will be soft-deleted.')"
+                              class="shrink-0">
+                            @csrf @method('DELETE')
+                            <button class="w-10 h-10 flex items-center justify-center bg-white hover:bg-red-50 text-gray-400 hover:text-red-500 border border-gray-100 rounded-xl transition">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        @empty
+            <div class="col-span-full py-20 bg-white rounded-3xl border-2 border-dashed border-gray-100 flex flex-col items-center justify-center text-center">
+                <div class="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6">
+                    <svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6M9 16h6M9 8h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-bold text-gray-400 mb-2 uppercase tracking-wide">No Forms Created Yet</h3>
+                <p class="text-gray-400 text-sm mb-8 max-w-xs mx-auto italic">Start by building your first enrollment form schema to begin receiving applications.</p>
+                <a href="{{ route('admin.forms.create') }}"
+                   class="inline-flex items-center gap-2 bg-[#00923F] hover:bg-[#004225] text-white text-xs font-black uppercase tracking-widest px-8 py-4 rounded-2xl transition shadow-xl shadow-green-100">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    Create First Form
+                </a>
+            </div>
+        @endforelse
     </div>
 
     @if($forms->hasPages())

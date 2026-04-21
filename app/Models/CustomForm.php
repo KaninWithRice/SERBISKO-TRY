@@ -13,6 +13,7 @@ class CustomForm extends Model
         'created_by',
         'title',
         'description',
+        'school_year',
         'schema',
         'firestore_doc_id',
         'share_token',

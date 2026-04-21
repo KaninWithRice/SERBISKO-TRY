@@ -37,11 +37,10 @@
             </div>
             <div class="ml-8 mt-1">
                 <p class="text-[#5F748D] text-sm font-medium leading-tight">
-                    {{ $conflicts->count() }} pending discrepancies between Google Sheets and Local Database
+                    {{ $conflicts->count() }} pending discrepancies between Form Responses and Local Database
                 </p>
             </div>
         </div>
-        <a href="{{ route('admin.systemsync') }}" class="text-[#00923F] font-bold hover:underline">← Back to System Sync</a>
     </div>
 
     {{-- Data Table --}}

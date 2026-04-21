@@ -13,9 +13,9 @@ class StudentController extends Controller
 {
     public function students(Request $request)
     {
-        // Fetch the Global Active Year from your existing SystemSetting model
-        $settings = \App\Models\SystemSetting::first();
-        $activeSY = $settings ? $settings->active_school_year : '2025-2026';
+        // Fetch the Global Active Year from the latest CustomForm model
+        $settings = \App\Models\CustomForm::latest()->first();
+        $activeSY = $settings ? $settings->school_year : '2025-2026';
 
         // Allow manual override via request (for viewing old archives)
         $selectedYear = $request->get('school_year', $activeSY);
@@ -126,10 +126,15 @@ class StudentController extends Controller
                 'TVL' => 'TechPro'
             ];
 
-            $student->display_grade   = $student->kiosk_grade   ?? ($details['Grade Level to Enroll'] ?? '—');
-            $student->display_track   = $student->kiosk_track   ?? ($details['Track'] ?? '—');
-            $student->display_status  = ($details['Academic Status'] ?? null) ?? ($student->kiosk_status ?? '—');
-            $student->display_cluster = $student->kiosk_cluster ?? ($acronyms[$jsonCluster] ?? $jsonCluster);
+            // Helper to ensure we get a string even if the value is an array
+            $asString = function($val) {
+                return is_array($val) ? implode(', ', $val) : $val;
+            };
+
+            $student->display_grade   = $asString($student->kiosk_grade   ?? ($details['Grade Level to Enroll'] ?? '—'));
+            $student->display_track   = $asString($student->kiosk_track   ?? ($details['Track'] ?? '—'));
+            $student->display_status  = $asString(($details['Academic Status'] ?? null) ?? ($student->kiosk_status ?? '—'));
+            $student->display_cluster = $asString($student->kiosk_cluster ?? ($acronyms[$asString($jsonCluster)] ?? $jsonCluster));
 
             if ($student->kiosk_status === 'Officially Enrolled') {
                 $student->enrollment_category = 'Officially Enrolled';
@@ -240,8 +245,8 @@ class StudentController extends Controller
 
         // 5. Fetch Sections data for the profile
         $academicYears = \App\Models\Section::distinct()->pluck('academic_year')->toArray();
-        $settings = \App\Models\SystemSetting::first();
-        $activeSY = $settings ? $settings->active_school_year : '2025-2026';
+        $settings = \App\Models\CustomForm::latest()->first();
+        $activeSY = $settings ? $settings->school_year : '2025-2026';
         if (!in_array($activeSY, $academicYears)) {
             $academicYears[] = $activeSY;
         }

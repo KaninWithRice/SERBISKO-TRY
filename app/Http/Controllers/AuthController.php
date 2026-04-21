@@ -64,8 +64,14 @@ class AuthController extends Controller
         }
 
         // 4. Password Verification (Verify credentials before checking if revoked)
-        if (!Hash::check($request->password, $user->password)) {
-            return back()->withErrors(['password' => 'Incorrect password.'])->withInput($request->except('password'));
+        try {
+            if (!Hash::check($request->password, $user->password)) {
+                return back()->withErrors(['password' => 'Incorrect password.'])->withInput($request->except('password'));
+            }
+        } catch (\RuntimeException $e) {
+            // This handles "This password does not use the Bcrypt algorithm" or other hashing errors
+            return back()->withErrors(['message' => 'Your account security format is outdated. Please contact the administrator to reset your password.'])
+                        ->withInput($request->except('password'));
         }
 
         // 5. Check if Account is Revoked (Soft Deleted)
@@ -153,7 +159,7 @@ class AuthController extends Controller
         }
 
         // 3. Hash and Save the new password
-        $user->password = Hash::make($request->new_password);
+        $user->password = $request->new_password;
         $user->save();
 
         // 4. Redirect with a success notification
