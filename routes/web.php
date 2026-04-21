@@ -16,6 +16,8 @@ use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\Admin\FormBuilderController;
 use Illuminate\Support\Facades\DB;
 
+use App\Http\Controllers\Admin\NotificationController;
+
 /*
 |--------------------------------------------------------------------------
 | Public Routes
@@ -79,6 +81,10 @@ Route::middleware([CheckAdmin::class])->group(function () {
         Route::get('/forms/{form}/edit',    [FormBuilderController::class, 'edit'])->name('forms.edit');
         Route::put('/forms/{form}',         [FormBuilderController::class, 'update'])->name('forms.update');
         Route::delete('/forms/{form}',      [FormBuilderController::class, 'destroy'])->name('forms.destroy');
+
+        // Notifications
+        Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::post('/notifications/mark-read', [NotificationController::class, 'markAsRead'])->name('notifications.markRead');
 
     });
 });

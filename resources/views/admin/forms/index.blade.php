@@ -28,7 +28,7 @@
             </div>
             <div class="ml-8 mt-1">
                 <p class="text-[#5F748D] text-sm font-medium leading-tight">
-                    Build forms for students · Sync schemas to Firestore · Generate QR codes
+                    Build forms for students & Share
                 </p>
             </div>
         </div>
