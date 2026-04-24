@@ -89,7 +89,7 @@ const EXCLUDED_FROM_EXTRA = new Set([
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function processDocument(docId, rawInput) {
-  const terminalStates = [true, 'conflict', 'locked', 'rejected'];
+  const terminalStates = [true, 'conflict', 'locked', 'rejected', 'limit_reached'];
   if (terminalStates.includes(rawInput.isSynced)) return 'skipped';
 
   const raw = sanitizePayload(rawInput);
@@ -142,6 +142,34 @@ async function processDocument(docId, rawInput) {
       console.log(`🔒 [LOCKED] LRN ${lrn} is manually edited — skipping auto-sync.`);
       return 'skipped';
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SUBMISSION LIMIT CHECK
+    // Must run AFTER the lock check but BEFORE any identity validation or writes.
+    // Counts all pre_enrollment rows ever recorded for this LRN (across versions),
+    // which is the durable source of truth now that Firestore docs are deleted
+    // after a successful sync.
+    // ─────────────────────────────────────────────────────────────────────────
+    const SUBMISSION_LIMIT = 3;
+
+    const [[{ submissionCount }]] = await conn.execute(
+      `SELECT COUNT(*) AS submissionCount
+       FROM pre_enrollments pe
+       JOIN students s ON s.id = pe.student_id
+       WHERE s.lrn = ? AND s.school_year = ?`,
+      [lrn, schoolYear]
+    );
+
+    if (submissionCount >= SUBMISSION_LIMIT) {
+      await conn.rollback();
+      await db.collection('responses').doc(docId).update({
+        isSynced:    'limit_reached',
+        syncMessage: 'Submission limit reached. Please contact the admin if you need to make changes.',
+      });
+      console.log(`⛔ [LIMIT] Submission limit reached for LRN: ${lrn} (${submissionCount}/${SUBMISSION_LIMIT})`);
+      return 'limit_reached';
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     let userId = existingUser?.id || null;
 
