@@ -262,6 +262,9 @@ class StudentController extends Controller
     // 4. STUDENT PROFILE UPDATE LOGIC
     public function updateStudentProfile(Request $request, $id)
     {
+        // Log the incoming request for debugging
+        \Illuminate\Support\Facades\Log::info("Updating Profile for User ID: " . $id, $request->all());
+
         // 1. Basic Validation
         $request->validate([
             'first_name' => 'required|string|max:255',
@@ -270,8 +273,15 @@ class StudentController extends Controller
 
         DB::beginTransaction();
         try {
-            $student = DB::table('students')->where('lrn', $id)->first();
-            if (!$student) throw new \Exception("Student record not found.");
+            // Find student by user_id
+            $student = DB::table('students')->where('user_id', $id)->first();
+            
+            if (!$student) {
+                // Fallback: Try finding by LRN if user_id search fails
+                $student = DB::table('students')->where('lrn', $id)->first();
+            }
+
+            if (!$student) throw new \Exception("Student record not found for Identifier: " . $id);
 
             // 2. Update Master Identity (Users Table)
             DB::table('users')->where('id', $student->user_id)->update([
@@ -291,14 +301,25 @@ class StudentController extends Controller
                 'father_last_name', 'father_first_name', 'father_middle_name', 'father_contact_number',
                 'mother_last_name', 'mother_first_name', 'mother_middle_name', 'mother_contact_number',
                 'guardian_last_name', 'guardian_first_name', 'guardian_middle_name', 'guardian_contact_number',
-                'grade_level', 'section_id'
+                'grade_level', 'section_id', 'school_year'
             ]);
+
+            // Filter out null values except for section_id
+            $studentFields = array_filter($studentFields, function($value, $key) {
+                return $key === 'section_id' || !is_null($value);
+            }, ARRAY_FILTER_USE_BOTH);
+
+            // Clean up section_id if empty string
+            if (isset($studentFields['section_id']) && $studentFields['section_id'] === "") {
+                $studentFields['section_id'] = null;
+            }
 
             $studentFields['is_manually_edited'] = 1;
             $studentFields['updated_at'] = now();
 
             // 4. Update the Students Table
-            DB::table('students')->where('lrn', $id)->update($studentFields);
+            $updated = DB::table('students')->where('id', $student->id)->update($studentFields);
+            \Illuminate\Support\Facades\Log::info("Student table updated: " . ($updated ? 'Yes' : 'No/No changes'));
 
             // 5. Update JSON Responses (Extra Fields)
             if ($request->has('responses')) {
@@ -309,7 +330,8 @@ class StudentController extends Controller
 
                 if ($preEnrollment) {
                     $currentResponses = json_decode($preEnrollment->responses, true) ?? [];
-                    $updatedResponses = array_merge($currentResponses, $request->responses);
+                    $newResponses = is_array($request->responses) ? $request->responses : [];
+                    $updatedResponses = array_merge($currentResponses, $newResponses);
 
                     DB::table('pre_enrollments')
                         ->where('id', $preEnrollment->id)
@@ -321,10 +343,11 @@ class StudentController extends Controller
             }
 
             DB::commit();
-            return back()->with('success', 'Profile updated and locked from Google Sync.');
+            return back()->with('success', 'Profile updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Update failed: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("Update failed: " . $e->getMessage());
+            return back()->with('error', 'Update failed: ' . $e->getMessage())->withInput();
         }
     }
 

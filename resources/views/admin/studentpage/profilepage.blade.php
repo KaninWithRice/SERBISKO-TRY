@@ -16,7 +16,115 @@
 
 @section('content')
 {{-- Wrap the entire section in Alpine.js and a Form --}}
-<div x-data="{ editing: false }" class="p-6 font-['Inter'] tracking-normal space-y-4">
+<div x-data="{ 
+    editing: false, 
+    isAutomating: false,
+    automationStatus: '',
+    automationColor: 'text-[#00923F]',
+    academic_year: '{{ $activeSY }}',
+    grade_level: '{{ $student->grade_level ?? $finalGrade }}',
+    section_id: '{{ $student->section_id ?? "" }}',
+    sections: [],
+    studentData: {},
+    async runAutomation() {
+        try {
+            this.isAutomating = true;
+            this.automationStatus = 'Gathering profile data...';
+            this.automationColor = 'text-[#00923F]';
+
+            // 1. Determine the Section Name
+            let selectedSectionName = '';
+            if (this.section_id) {
+                const found = this.sections.find(s => s.id == this.section_id);
+                if (found) selectedSectionName = found.name;
+            }
+            if (!selectedSectionName) {
+                selectedSectionName = '{{ addslashes($student->section_name ?? "") }}';
+            }
+
+            // 2. Validation
+            if (!selectedSectionName || selectedSectionName === '—') {
+                this.automationStatus = 'Error: Please assign and save a section first.';
+                this.automationColor = 'text-red-600';
+                this.isAutomating = false;
+                return;
+            }
+
+            // 3. Gather full packet
+            this.studentData = {
+                lrn: '{{ addslashes($student->lrn ?? "") }}',
+                first_name: '{{ addslashes($student->first_name ?? "") }}',
+                last_name: '{{ addslashes($student->last_name ?? "") }}',
+                middle_name: '{{ addslashes($student->middle_name ?? "") }}',
+                extension_name: '{{ addslashes($student->extension_name ?? "") }}',
+                birthday: '{{ addslashes($student->birthday ?? "") }}',
+                section_name: selectedSectionName,
+                grade_level: this.grade_level,
+                mother_tongue: '{{ addslashes($student->mother_tongue ?? "") }}',
+                sex: '{{ addslashes($student->sex ?? "") }}',
+                curr_province: '{{ addslashes($student->curr_province ?? "") }}',
+                curr_city: '{{ addslashes($student->curr_city ?? "") }}',
+                curr_barangay: '{{ addslashes($student->curr_barangay ?? "") }}',
+                curr_zip_code: '{{ addslashes($student->curr_zip_code ?? "") }}',
+                mother_first_name: '{{ addslashes($student->mother_first_name ?? "") }}',
+                mother_last_name: '{{ addslashes($student->mother_last_name ?? "") }}',
+                mother_middle_name: '{{ addslashes($student->mother_middle_name ?? "") }}',
+                father_first_name: '{{ addslashes($student->father_first_name ?? "") }}',
+                father_last_name: '{{ addslashes($student->father_last_name ?? "") }}',
+                father_middle_name: '{{ addslashes($student->father_middle_name ?? "") }}',
+                guardian_first_name: '{{ addslashes($student->guardian_first_name ?? "") }}',
+                guardian_last_name: '{{ addslashes($student->guardian_last_name ?? "") }}',
+                guardian_middle_name: '{{ addslashes($student->guardian_middle_name ?? "") }}',
+                guardian_relationship: '{{ addslashes($details['guardian_relationship'] ?? ($details['relationship'] ?? 'Relative')) }}',
+                email: '{{ addslashes($details['email'] ?? ($details['email address'] ?? "")) }}',
+                religion: '{{ addslashes($details['religion'] ?? "Roman Catholic") }}',
+                citizenship: '{{ addslashes($details['citizenship'] ?? "Philippines") }}',
+                modality: '{{ addslashes($details['modality'] ?? "Face to face") }}'
+            };
+            
+            console.log('Final Data Packet Ready:', this.studentData);
+            this.automationStatus = 'Connecting to automation service...';
+
+            const response = await fetch('http://127.0.0.1:5002/fill-enrollment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(this.studentData)
+            });
+            
+            const data = await response.json();
+
+            if(data.status === 'started') {
+                this.automationStatus = 'Automation Started! Check the Firefox window.';
+                setTimeout(() => { this.isAutomating = false; this.automationStatus = ''; }, 15000);
+            } else {
+                this.automationStatus = 'Error: ' + (data.message || 'Unknown error');
+                this.automationColor = 'text-red-600';
+                this.isAutomating = false;
+            }
+
+        } catch (e) {
+            console.error('JS Error:', e);
+            this.automationStatus = 'Error: ' + e.message;
+            this.automationColor = 'text-red-600';
+            this.isAutomating = false;
+        }
+    },
+    async fetchSections() {
+        if (!this.academic_year || !this.grade_level) {
+            this.sections = [];
+            return;
+        }
+        try {
+            let response = await fetch(`/admin/api/sections?academic_year=${encodeURIComponent(this.academic_year)}&grade_level=${this.grade_level}`);
+            let data = await response.json();
+            this.sections = data;
+        } catch (e) {
+            console.error('Failed to fetch sections', e);
+        }
+    }
+}" 
+x-init="fetchSections()"
+class="p-6 font-['Inter'] tracking-normal space-y-4">
 
     @php
         $renderFields = function($fields, $cols = 'md:grid-cols-2', $isJson = false) {
@@ -49,9 +157,12 @@
         $age = !empty($student->birthday) ? \Carbon\Carbon::parse($student->birthday)->age : '—';
     @endphp
     
-    <form action="{{ route('admin.students.update', $student->id) }}" method="POST">
+    <form action="{{ route('admin.students.update', $student->user_id) }}" method="POST">
         @csrf
         @method('PUT')
+
+        {{-- Add a hidden input for LRN to ensure it's still available if needed --}}
+        <input type="hidden" name="id" value="{{ $student->lrn }}">
 
         @if(session('success'))
             <div class="bg-green-50 border-l-4 border-green-500 text-green-700 px-4 py-3 rounded-md shadow-sm mb-4">
@@ -59,6 +170,22 @@
                     <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
                     <p class="text-sm font-medium">{{ session('success') }}</p>
                 </div>
+            </div>
+        @endif
+
+        @if($errors->any())
+            <div class="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-md shadow-sm mb-4">
+                <ul class="list-disc list-inside text-sm">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
+        @if(session('error'))
+            <div class="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-md shadow-sm mb-4">
+                <p class="text-sm font-medium">{{ session('error') }}</p>
             </div>
         @endif
 
@@ -90,6 +217,24 @@
                     :class="editing ? 'bg-gray-100 text-gray-700 border-gray-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-gray-300'">
                     <span x-text="editing ? 'Cancel' : 'Edit Profile'"></span>
                 </button>
+
+                <button x-show="!editing" type="button" 
+                    :disabled="isAutomating"
+                    @click="runAutomation()"
+                    class="inline-flex items-center px-5 py-2.5 bg-[#00923F] text-white rounded-lg font-semibold shadow-sm hover:bg-[#007a34] transition-colors border border-[#00923F] disabled:bg-gray-400 disabled:border-gray-400">
+                    <svg x-show="isAutomating" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span x-text="isAutomating ? 'Running...' : 'Use Profile'"></span>
+                </button>
+
+                <div x-show="automationStatus" 
+                    x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 transform -translate-x-2"
+                    x-transition:enter-end="opacity-100 transform translate-x-0"
+                    class="text-xs font-bold uppercase tracking-wider" :class="automationColor" x-text="automationStatus">
+                </div>
                 
                 <button x-show="editing" type="submit" 
                     class="inline-flex items-center bg-[#00923F] hover:bg-[#007a34] text-white font-bold px-5 py-2.5 rounded-lg shadow-md transition outline-none">
@@ -142,16 +287,87 @@
                 ]) !!}
             </div>
 
-            {{-- Enrolment (Read Only or Sync from JSON) --}}
-            <div class="bg-[#F7FBF9]/40 rounded-xl shadow-md border border-gray-100 p-7">
-                <h2 class="text-[#005288] text-sm font-extrabold mb-4 uppercase">Enrolment</h2>
-                {!! $renderFields([
-                    'School Year:' => $details['School Year'] ?? '—',
-                    'Grade Level to Enroll:' => $finalGrade,    
-                    'Track:'       => $finalTrack,   
-                    'Cluster of Electives:'    => $finalCluster,  
-                    'Academic Status:'      => $finalStatus    
-                ], 'grid-cols-1', true) !!}
+            {{-- Enrolment (Dynamic with Sections) --}}
+            <div class="bg-[#F7FBF9]/60 backdrop-blur-sm rounded-3xl shadow-lg border border-green-100/50 p-8">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="bg-[#00923F] p-1.5 rounded-lg shadow-sm">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                    </div>
+                    <h2 class="text-[#003918] text-sm font-black uppercase tracking-widest">Enrolment</h2>
+                </div>
+                
+                <div class="space-y-6">
+                    <!-- School Year -->
+                    <div class="relative border-b border-gray-100 pb-2 group transition-all duration-200">
+                        <label class="block text-[10px] font-black text-gray-400 mb-1.5 tracking-[0.1em] uppercase">Academic Year</label>
+                        <p x-show="!editing" class="text-[13px] uppercase text-[#003918] min-h-6 font-black tracking-tight">{{ $student->school_year ?: '—' }}</p>
+                        <div x-show="editing" class="relative">
+                            <select name="school_year" x-model="academic_year" @change="fetchSections()"
+                                class="w-full text-[13px] uppercase text-[#005288] bg-[#F1F3F2] border-none rounded-xl py-2 px-4 focus:ring-2 focus:ring-[#00923F] outline-none font-bold appearance-none">
+                                @foreach($academicYears as $ay)
+                                    <option value="{{ $ay }}">{{ $ay }}</option>
+                                @endforeach
+                            </select>
+                            <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#005288]/50">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Grade Level -->
+                    <div class="relative border-b border-gray-100 pb-2 group transition-all duration-200">
+                        <label class="block text-[10px] font-black text-gray-400 mb-1.5 tracking-[0.1em] uppercase">Grade Level</label>
+                        <p x-show="!editing" class="text-[13px] uppercase text-[#003918] min-h-6 font-black tracking-tight">{{ $student->grade_level ?? $finalGrade }}</p>
+                        <div x-show="editing" class="relative">
+                            <input type="hidden" name="grade_level" :value="grade_level">
+                            <select x-model="grade_level" @change="fetchSections()"
+                                class="w-full text-[13px] uppercase text-[#005288] bg-[#F1F3F2] border-none rounded-xl py-2 px-4 focus:ring-2 focus:ring-[#00923F] outline-none font-bold appearance-none">
+                                <option value="Grade 11">Grade 11</option>
+                                <option value="Grade 12">Grade 12</option>
+                            </select>
+                            <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#005288]/50">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section -->
+                    <div class="relative border-b border-gray-100 pb-2 group transition-all duration-200">
+                        <label class="block text-[10px] font-black text-gray-400 mb-1.5 tracking-[0.1em] uppercase">Section</label>
+                        <p x-show="!editing" class="text-[13px] uppercase text-[#003918] min-h-6 font-black tracking-tight">
+                            {{ $student->section_name ?? '—' }}
+                        </p>
+                        <div x-show="editing" class="relative">
+                            <input type="hidden" name="section_id" :value="section_id">
+                            <select x-model="section_id"
+                                class="w-full text-[13px] uppercase text-[#005288] bg-[#F1F3F2] border-none rounded-xl py-2 px-4 focus:ring-2 focus:ring-[#00923F] outline-none font-bold appearance-none">
+                                <option value="">Select Section</option>
+                                <template x-for="section in sections" :key="section.id">
+                                    <option :value="section.id" x-text="section.name"></option>
+                                </template>
+                            </select>
+                            <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#005288]/50">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sync Data -->
+                    <div class="space-y-4 pt-4 border-t border-dashed border-gray-100 mt-2">
+                        <div class="relative">
+                            <label class="block text-[9px] font-black text-gray-300 mb-1 uppercase">Track</label>
+                            <p class="text-[12px] uppercase text-gray-400 font-bold italic">{{ $finalTrack ?: '—' }}</p>
+                        </div>
+                        <div class="relative">
+                            <label class="block text-[9px] font-black text-gray-300 mb-1 uppercase">Cluster</label>
+                            <p class="text-[12px] uppercase text-gray-400 font-bold italic">{{ $finalCluster ?: '—' }}</p>
+                        </div>
+                        <div class="relative">
+                            <label class="block text-[9px] font-black text-gray-300 mb-1 uppercase">Academic Status</label>
+                            <p class="text-[12px] uppercase text-gray-400 font-bold italic">{{ $finalStatus ?: '—' }}</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {{-- Address Section --}}
