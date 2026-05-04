@@ -14,31 +14,47 @@
 </head>
 <body class="custom-gradient min-h-screen flex items-center justify-center p-8">
 
-    <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden">
+    <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden mb-20">
         <div class="bg-blue-900 px-8 py-6 text-white text-center">
             <h1 class="text-2xl font-bold">Welcome, Ka-Compre!</h1>
             <p class="text-sm opacity-80 mt-1">Please set your new account password to continue.</p>
         </div>
 
         <div class="p-8">
-            <form action="{{ url('/first-login/update') }}" method="POST" class="space-y-6" x-data="{ loading: false }" @submit="loading = true">
+            <form action="{{ url('/first-login/update') }}" method="POST" class="space-y-6" 
+                autocomplete="off"
+                x-data="{ loading: false, showNew: false, showConfirm: false }" @submit="loading = true">
                 @csrf
                 
                 <div class="space-y-1">
                     <label class="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">New Password</label>
-                    <input type="password" name="new_password" required
-                        class="w-full px-5 py-3 rounded-xl border-2 border-gray-100 bg-gray-50 focus:border-blue-900 focus:bg-white outline-none transition-all"
-                        placeholder="••••••••">
+                    <div class="relative">
+                        <input :type="showNew ? 'text' : 'password'" name="new_password" required
+                            autocomplete="new-password"
+                            class="w-full px-5 py-3 rounded-xl border-2 border-gray-100 bg-gray-50 focus:border-blue-900 focus:bg-white outline-none transition-all pr-12"
+                            placeholder="••••••••">
+                        <button type="button" @click="showNew = !showNew" class="absolute inset-y-0 right-0 pr-4 flex items-center text-blue-900">
+                            <svg x-show="!showNew" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                            <svg x-show="showNew" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.025 10.025 0 014.132-5.403m5.417-1.071A10.05 10.05 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.403m-5.417 1.071L17.25 17.25M3.75 3.75l16.5 16.5" /></svg>
+                        </button>
+                    </div>
                     @error('new_password')
-                        <p class="text-red-600 text-[10px] mt-1 italic ml-1">{{ $message }}</p>
+                        <p class="text-red-600 text-[10px] mt-1 italic ml-1 font-bold">{{ $message }}</p>
                     @enderror
                 </div>
 
                 <div class="space-y-1">
                     <label class="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Confirm Password</label>
-                    <input type="password" name="new_password_confirmation" required
-                        class="w-full px-5 py-3 rounded-xl border-2 border-gray-100 bg-gray-50 focus:border-blue-900 focus:bg-white outline-none transition-all"
-                        placeholder="••••••••">
+                    <div class="relative">
+                        <input :type="showConfirm ? 'text' : 'password'" name="new_password_confirmation" required
+                            autocomplete="new-password"
+                            class="w-full px-5 py-3 rounded-xl border-2 border-gray-100 bg-gray-50 focus:border-blue-900 focus:bg-white outline-none transition-all pr-12"
+                            placeholder="••••••••">
+                        <button type="button" @click="showConfirm = !showConfirm" class="absolute inset-y-0 right-0 pr-4 flex items-center text-blue-900">
+                            <svg x-show="!showConfirm" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                            <svg x-show="showConfirm" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.025 10.025 0 014.132-5.403m5.417-1.071A10.05 10.05 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.403m-5.417 1.071L17.25 17.25M3.75 3.75l16.5 16.5" /></svg>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="bg-blue-50 rounded-xl p-4 border border-blue-100">
@@ -70,5 +86,6 @@
         </div>
     </div>
 
+    @include('includes.keyboard')
 </body>
 </html>

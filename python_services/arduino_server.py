@@ -91,7 +91,7 @@ def start_conveyor():
     send_command('c0')
     
     def conveyor_timer():
-        time.sleep(6)
+        time.sleep(3)
         send_command('c1')
         print("🛑 Conveyor Auto-Stopped (c1 triggered).")
         
@@ -103,10 +103,20 @@ def stop_conveyor():
     send_command('c1')
     return jsonify({'status': 'success', 'command': 'c1', 'message': 'Conveyor stopped manually (c1)'})
 
-@app.route('/api/conveyor/w', methods=['POST'])
-def trigger_w():
-    send_command('w')
-    return jsonify({'status': 'success', 'command': 'w', 'message': 'Conveyor W command triggered'})
+@app.route('/api/conveyor/c0', methods=['POST'])
+def trigger_c0():
+    send_command('c0')
+    
+    def delayed_c1():
+        time.sleep(5)
+        # Send twice for extra reliability
+        send_command('c1')
+        time.sleep(0.5)
+        send_command('c1')
+        print("🛑 Conveyor Auto-Stopped after C0 (c1 triggered twice).")
+        
+    threading.Thread(target=delayed_c1).start()
+    return jsonify({'status': 'success', 'command': 'c0', 'message': 'Conveyor C0 command triggered. c1 in 5s.'})
 
 # ==========================================
 # 3. BIN ROUTING (Fixes the /api/strand/be 404 error)
@@ -156,25 +166,35 @@ def read_sensor():
 
 @app.route('/api/sensor/check-rejection', methods=['GET'])
 def check_rejection():
-    """Specifically checks for PAPER_REJECTED signal from Arduino."""
+    """Specifically checks for PAPER_REJECTED signal from Arduino using the latest state."""
     if not arduino:
         return jsonify({'rejected': False})
         
-    found = False
-    # Read ALL available lines in the buffer to make sure we don't miss it
+    latest_state = False
+    lines_read = 0
+    
+    # Read ALL available lines in the buffer, but only keep the most recent relevant state
     while arduino.in_waiting > 0:
         try:
             line = arduino.readline().decode('utf-8').strip()
-            print(f"📡 Serial Read (Rejection Check): {line}")
-            if 'PAPER_REJECTED' in line:
-                found = True
-                # Don't break immediately, clear the rest of the buffer 
-                # to avoid lingering signals for the next doc
+            if line:
+                lines_read += 1
+                # print(f"📡 Serial Read (Rejection Check): {line}") # Optional: comment out if too noisy
+                
+                # Update the latest state based on what the Arduino is currently saying
+                if 'PAPER_REJECTED' in line or 'I0' in line:
+                    latest_state = True
+                elif 'PAPER_ACCEPTED' in line or 'PAPER_REMOVED' in line or 'I1' in line:
+                    latest_state = False
+                    
         except Exception as e:
             print(f"⚠️ Error reading serial: {e}")
             break
             
-    return jsonify({'rejected': found})
+    if lines_read > 0:
+        print(f"📡 Serial Read ({lines_read} lines). Latest Rejection State: {latest_state}")
+            
+    return jsonify({'rejected': latest_state})
 
 # ==========================================
 # STATUS PING

@@ -13,8 +13,38 @@ use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
+    public function showLogin()
+    {
+        // Safety: Close the door whenever someone reaches the login screen
+        try {
+            Http::timeout(2)->post('http://' . env('SERVICE_HOST', '127.0.0.1') . ':51234/api/door', ['action' => 'close']);
+        } catch (\Exception $e) {
+            // Silently fail
+        }
+
+        if (Auth::check()) {
+            $role = strtolower(Auth::user()->role);
+            if (in_array($role, ['admin', 'super_admin', 'facilitator'])) {
+                return redirect('/dashboard');
+            }
+            return redirect('/student/grade-selection');
+        }
+
+        return view('login');
+    }
+
     public function login(Request $request)
-        {
+    {
+        // 1. Prepare DOB from dropdowns if they exist
+        if ($request->filled(['dob_year', 'dob_month', 'dob_day'])) {
+            $dob = sprintf('%s-%02d-%02d', 
+                $request->dob_year, 
+                $request->dob_month, 
+                $request->dob_day
+            );
+            $request->merge(['dob' => $dob]);
+        }
+
         // 1. Validation (remains the same)
         $request->validate([
             'last_name' => 'required|string',
@@ -126,11 +156,17 @@ class AuthController extends Controller
             'new_password' => [
                 'required',
                 'confirmed',
-                Password::min(8)->letters()->mixedCase()->numbers()->symbols(),
+                'min:8',
+                'regex:/[a-z]/',      // at least one lowercase letter
+                'regex:/[A-Z]/',      // at least one uppercase letter
+                'regex:/[0-9]/',      // at least one number
+                'regex:/[@$!%*#?&]/', // at least one special character
             ],
         ], [
             'new_password.required' => 'New password is required.',
             'new_password.confirmed' => 'Passwords do not match.',
+            'new_password.min' => 'Password must be at least 8 characters long and include upper/lowercase letters, numbers, and special characters.',
+            'new_password.regex' => 'Password must be at least 8 characters long and include upper/lowercase letters, numbers, and special characters.',
         ]);
 
         $user = Auth::user();
@@ -140,7 +176,8 @@ class AuthController extends Controller
 
         // Logout after password change
         Auth::logout();
-        Session::flush();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return redirect('/login')->with('success', 'Password updated successfully. Please log in with your new password.');
     }
@@ -149,7 +186,7 @@ class AuthController extends Controller
     {
         // Safety: Try to close the slot door on logout
         try {
-            Http::timeout(2)->post('http://127.0.0.1:51234/api/door', ['action' => 'close']);
+            Http::timeout(2)->post('http://' . env('SERVICE_HOST', '127.0.0.1') . ':51234/api/door', ['action' => 'close']);
         } catch (\Exception $e) {
             Log::error("Arduino Offline (Logout Close): " . $e->getMessage());
         }

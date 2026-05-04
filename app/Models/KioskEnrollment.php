@@ -17,7 +17,7 @@ class KioskEnrollment extends Model
         'good_moral_path', 'good_moral_status', 'good_moral_remarks', 'good_moral_attempts',
         'sf10_path', 'sf10_status', 'sf10_remarks', 'sf10_attempts',
         'latest_scan_type', 'latest_scan_status', 'latest_scan_remarks',
-        'rejected_papers', 'started_at', 'completed_at'
+        'rejected_papers', 'started_at', 'completed_at', 'receipt_number'
     ];
 
     protected $casts = [

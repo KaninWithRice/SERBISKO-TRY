@@ -6,15 +6,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Student;
 
 class EnrollmentController extends Controller
 {
     private function getUserId() {
-        return session('user_id');
+        return Auth::id();
     }
 
     private function getStudent($userId) {
+        if (!$userId) return null;
         return Student::where('user_id', $userId)->first();
     }
 
@@ -22,12 +24,12 @@ class EnrollmentController extends Controller
         $request->validate(['grade_level' => 'required|in:11,12']);
         $userId = $this->getUserId();
         
-        if (!$userId) return redirect('/login')->withErrors(['error' => 'Session expired.']);
+        if (!$userId) return redirect('/login')->withErrors(['message' => 'Session expired. Please log in again.']);
 
         $student = $this->getStudent($userId);
         if (!$student) {
             Log::error("Student record not found for User ID: " . $userId);
-            return redirect('/login')->withErrors(['error' => 'Student record not found.']);
+            return redirect('/login')->withErrors(['message' => 'Your student profile is incomplete. Please contact the administrator.']);
         }
 
         session(['grade_level' => $request->grade_level]);
@@ -47,7 +49,11 @@ class EnrollmentController extends Controller
 
     public function saveStatus(Request $request) {
         $userId = $this->getUserId();
+        if (!$userId) return redirect('/login')->withErrors(['message' => 'Session expired.']);
+        
         $student = $this->getStudent($userId);
+        if (!$student) return redirect('/login')->withErrors(['message' => 'Student record not found.']);
+
         session(['student_status' => $request->student_status]);
         
         DB::table('kiosk_enrollments')->where('student_id', $student->id)
@@ -58,7 +64,11 @@ class EnrollmentController extends Controller
 
     public function saveTrack(Request $request) {
         $userId = $this->getUserId();
+        if (!$userId) return redirect('/login')->withErrors(['message' => 'Session expired.']);
+        
         $student = $this->getStudent($userId);
+        if (!$student) return redirect('/login')->withErrors(['message' => 'Student record not found.']);
+
         session(['track' => $request->track]);
         
         DB::table('kiosk_enrollments')->where('student_id', $student->id)
@@ -70,7 +80,11 @@ class EnrollmentController extends Controller
     public function saveCluster(Request $request) {
         $cluster = $request->input('cluster');
         $userId = $this->getUserId();
+        if (!$userId) return redirect('/login')->withErrors(['message' => 'Session expired.']);
+        
         $student = $this->getStudent($userId);
+        if (!$student) return redirect('/login')->withErrors(['message' => 'Student record not found.']);
+
         session(['cluster' => $cluster]);
 
         // Update Database
@@ -79,8 +93,8 @@ class EnrollmentController extends Controller
 
         // Arduino Physical Triggers
         try {
-            Http::timeout(3)->post('http://127.0.0.1:51234/api/strand/' . $cluster);
-            Http::timeout(3)->post('http://127.0.0.1:51234/api/door', ['action' => 'close']);
+            Http::timeout(3)->post('http://' . env('SERVICE_HOST', '127.0.0.1') . ':51234/api/strand/' . $cluster);
+            Http::timeout(3)->post('http://' . env('SERVICE_HOST', '127.0.0.1') . ':51234/api/door', ['action' => 'close']);
         } catch (\Exception $e) {
             Log::error("Arduino offline (Sorting Trigger): " . $e->getMessage());
         }
@@ -94,14 +108,12 @@ class EnrollmentController extends Controller
             return [
                 'ALS Certificate of Rating' => 'als_cert',
                 'Enrollment Form' => 'enroll_form',
-                'PSA Birth Certificate' => 'psa',
-                'Affidavit of Undertaking' => 'affidavit'
+                'PSA Birth Certificate' => 'psa'
             ];
         } elseif ($status === 'transferee' || $status === 'balik_aral') {
             return [
                 'Report Card (SF9)' => 'sf9',
                 'PSA Birth Certificate' => 'psa',
-                'Affidavit of Undertaking' => 'affidavit',
                 'Enrollment Form' => 'enroll_form'
             ];
         } else {
@@ -119,13 +131,13 @@ class EnrollmentController extends Controller
 
         // Safety Fallback: Close the slot door whenever they land back on the checklist
         try {
-            Http::timeout(2)->post('http://127.0.0.1:51234/api/door', ['action' => 'close']);
+            Http::timeout(2)->post('http://' . env('SERVICE_HOST', '127.0.0.1') . ':51234/api/door', ['action' => 'close']);
         } catch (\Exception $e) {
             // Silently fail if Arduino is offline
         }
 
         $student = $this->getStudent($userId);
-        if (!$student) return redirect('/login');
+        if (!$student) return redirect('/login')->withErrors(['message' => 'Student profile incomplete.']);
 
         $enrollment = DB::table('kiosk_enrollments')->where('student_id', $student->id)->first();
         if (!$enrollment) {
@@ -157,10 +169,63 @@ class EnrollmentController extends Controller
         return view('student.checklist', compact('enrollment', 'requiredDocs'));
     }
 
+    public function showThankYou() {
+        $userId = Auth::id();
+        if (!$userId) return redirect('/login');
+
+        $student = $this->getStudent($userId);
+        if (!$student) return redirect('/login');
+
+        $enrollment = DB::table('kiosk_enrollments')->where('student_id', $student->id)->first();
+        if (!$enrollment) return redirect('/student/grade-selection');
+
+        // Check if all docs verified
+        $status = $enrollment->academic_status ?? 'regular';
+        $requiredDocs = $this->getRequiredDocs($status);
+        $allVerified = true;
+        foreach ($requiredDocs as $label => $prefix) {
+            $statusCol = $prefix . '_status';
+            $docStatus = $enrollment->$statusCol ?? 'pending';
+            if ($docStatus !== 'verified' && $docStatus !== 'manual_verification') {
+                $allVerified = false;
+                break;
+            }
+        }
+
+        if (!$allVerified) {
+            return redirect('/student/checklist');
+        }
+
+        // Generate receipt number if not exists
+        if (!$enrollment->receipt_number) {
+            $receiptNumber = 'RCT-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(4)));
+            // Ensure uniqueness
+            while (DB::table('kiosk_enrollments')->where('receipt_number', $receiptNumber)->exists()) {
+                $receiptNumber = 'RCT-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(4)));
+            }
+            
+            DB::table('kiosk_enrollments')->where('student_id', $student->id)->update([
+                'receipt_number' => $receiptNumber,
+                'completed_at' => now(),
+                'academic_status' => 'For Enrollment' // Update status to For Enrollment once complete
+            ]);
+            
+            // Refresh enrollment object
+            $enrollment = DB::table('kiosk_enrollments')->where('student_id', $student->id)->first();
+        }
+
+        $user = Auth::user();
+
+        return view('student.thankyou', compact('student', 'enrollment', 'user'));
+    }
+
     public function saveChecklist(Request $request) {
         $selectedDocs = $request->input('documents', []);
         $userId = $this->getUserId();
+        if (!$userId) return redirect('/login')->withErrors(['message' => 'Session expired.']);
+        
         $student = $this->getStudent($userId);
+        if (!$student) return redirect('/login')->withErrors(['message' => 'Student record not found.']);
         
         Log::info("Checklist Submitted", ['userId' => $userId, 'selected' => $selectedDocs]);
 
@@ -214,10 +279,10 @@ class EnrollmentController extends Controller
     }
 
     public function showCapture(Request $request) {
-        if (!session()->has('user_id')) return redirect('/');
+        if (!Auth::check()) return redirect('/');
         
         try {
-            Http::post('http://127.0.0.1:51234/api/door', ['action' => 'open']);
+            Http::post('http://' . env('SERVICE_HOST', '127.0.0.1') . ':51234/api/door', ['action' => 'open']);
         } catch (\Exception $e) {
             Log::error("Arduino Offline (Slot Open): " . $e->getMessage());
         }

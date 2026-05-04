@@ -3,7 +3,7 @@
         <table class="w-full bg-white table-fixed"> 
             <thead class="sticky top-0 z-10 bg-white">
                 <tr class="border-b border-gray-400">
-                    <th class="py-3 px-4 text-left text-[#003918] text-[11px] font-bold uppercase w-[12%]">LRN</th>
+                    <th class="py-3 px-4 text-left text-[#003918] text-[11px] font-bold uppercase w-[10%]">LRN</th>
                     <th class="py-3 px-4 text-left text-[#003918] text-[11px] font-bold uppercase w-[18%] relative group">
                         <div class="flex items-center gap-1">
                             Full Name
@@ -21,13 +21,13 @@
                             </div>
                         </div>
                     </th>
+                    <th class="py-3 px-4 text-left text-[#003918] text-[11px] font-bold uppercase w-[12%]">Receipt #</th>
                     <th class="py-3 px-4 text-left text-[#003918] text-[11px] font-bold uppercase w-[10%]">Student Type</th>
-                    <th class="py-3 px-4 text-center text-[#003918] text-[11px] font-bold uppercase w-[8%] leading-tight">Grade <br> Level</th>
+                    <th class="py-3 px-4 text-center text-[#003918] text-[11px] font-bold uppercase w-[7%] leading-tight">Grade <br> Level</th>
                     <th class="py-3 px-4 text-left text-[#003918] text-[11px] font-bold uppercase w-[10%]">Track</th>
-                    <th class="py-3 px-4 text-left text-[#003918] text-[11px] font-bold uppercase w-[10%]">Cluster</th>
-                    <th class="py-3 px-4 text-left text-[#003918] text-[11px] font-bold uppercase w-[15%]">Status</th>
-                    <th class="py-3 px-4 text-center text-[#003918] text-[11px] font-bold uppercase w-[9%] leading-tight">Requirement <br> Status</th>
-                    <th class="py-3 px-4 text-center text-[#003918] text-[11px] font-bold uppercase w-[7%]">Actions</th>
+                    <th class="py-3 px-4 text-left text-[#003918] text-[11px] font-bold uppercase w-[13%]">Status</th>
+                    <th class="py-3 px-4 text-center text-[#003918] text-[11px] font-bold uppercase w-[10%] leading-tight">Requirement <br> Status</th>
+                    <th class="py-3 px-4 text-center text-[#003918] text-[11px] font-bold uppercase w-[10%]">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
@@ -57,12 +57,14 @@
                             <span class="uppercase">{{ $student->last_name }},</span>
                             <span class="text-[#003918]/75 font-medium uppercase"> {{ $coloredPart }}</span>
                         </td>
+                        <td class="py-3 px-4 text-left text-[10px] text-[#005288] font-black tracking-tighter uppercase truncate">
+                            {{ $student->receipt_number ?? '—' }}
+                        </td>
                         <td class="py-3 px-4 text-left text-[11px] text-gray-600">{{ $student->display_status }}</td>
                         <td class="py-3 px-4 text-center text-[11px] text-gray-600">{{ $student->display_grade }}</td>
                         <td class="py-3 px-4 text-left text-[11px] text-gray-600 truncate">{{ $student->display_track }}</td>
-                        <td class="py-3 px-4 text-left text-[11px] text-gray-600 truncate">{{ $student->display_cluster }}</td>
                         <td class="py-3 px-4 text-center">
-                            <span class="text-[11px] {{ $student->status_style }} px-3 py-1 rounded-full border font-bold">
+                            <span class="text-[10px] {{ $student->status_style }} px-2 py-1 rounded-full border font-bold">
                                 {{ $student->enrollment_category }}
                             </span>
                         </td>

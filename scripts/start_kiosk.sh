@@ -22,7 +22,7 @@ sleep 5
 log "[*] Starting Kiosk Script..."
 
 # 1. Start Python Services (if not running)
-log "[*] Starting Python Services..."
+log "[*] Starting Backend Services..."
 
 # OCR Server (Port 9001)
 if ! pgrep -f ocr_server.py > /dev/null; then
@@ -36,10 +36,24 @@ if ! pgrep -f lis_server.py > /dev/null; then
     log "[+] LIS Server started."
 fi
 
+# Enrollment Automation (Port 5002)
+if ! pgrep -f enrollment_form_filler.py > /dev/null; then
+    nohup python3 -u $PROJECT_ROOT/python_services/enrollment_form_filler.py >> "$LOG_FILE" 2>&1 &
+    log "[+] Enrollment Automation started."
+fi
+
 # Arduino Server (Port 51234)
 if ! pgrep -f arduino_server_fixed.py > /dev/null; then
     nohup python3 -u $PROJECT_ROOT/scripts/arduino_server_fixed.py >> "$LOG_FILE" 2>&1 &
     log "[+] Fixed Arduino Server started."
+fi
+
+# Node.js Sync Bridge (Firestore Sync)
+if ! pgrep -f "node.*sync.js" > /dev/null; then
+    log "[*] Starting Sync Bridge..."
+    cd $PROJECT_ROOT/bridge && nohup node sync.js >> "$LOG_FILE" 2>&1 &
+    log "[+] Sync Bridge started."
+    cd $PROJECT_ROOT
 fi
 
 # 1.5 Wait for Arduino Server to confirm connection

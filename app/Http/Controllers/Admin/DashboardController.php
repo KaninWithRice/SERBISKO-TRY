@@ -44,7 +44,7 @@ class DashboardController extends Controller
             ->count('students.lrn');
 
         $totalEnrolled = $applyFilter(clone $baseQuery)
-            ->where('kiosk_enrollments.academic_status', '=', 'Officially Enrolled')
+            ->whereIn('kiosk_enrollments.academic_status', ['Officially Enrolled', 'Enrolled'])
             ->count('students.lrn');
 
         // --- Stats Calculation ---
@@ -77,19 +77,54 @@ class DashboardController extends Controller
         $recentKioskSubmissions = DB::table('kiosk_enrollments')
             ->join('students', 'kiosk_enrollments.student_id', '=', 'students.id')
             ->join('users', 'students.user_id', '=', 'users.id')
+            ->leftJoin('pre_enrollments', 'students.id', '=', 'pre_enrollments.student_id')
             ->whereNull('users.deleted_at')
             ->select(
+                'students.lrn', 'users.id as user_primary_id',
                 'users.first_name', 'users.middle_name', 'users.last_name',
                 'users.extension_name', 'kiosk_enrollments.grade_level',
                 'kiosk_enrollments.track', 'kiosk_enrollments.cluster',
-                'kiosk_enrollments.completed_at', 'kiosk_enrollments.academic_status as status'
+                'kiosk_enrollments.completed_at', 'kiosk_enrollments.academic_status as status',
+                'pre_enrollments.responses'
             )
             ->when(!empty($grade), function($q) use ($grade) {
                 return $q->where('kiosk_enrollments.grade_level', $grade);
             })
             ->orderBy('kiosk_enrollments.completed_at', 'desc')
             ->limit(5)
-            ->get();
+            ->get()->map(function($submission) {
+                // Calculate requirement status for each
+                $verifiedCount = DB::table('scans')
+                    ->where(function($q) use ($submission) {
+                        $q->where('lrn', $submission->lrn)
+                          ->orWhere('user_id', $submission->user_primary_id);
+                    })
+                    ->where('status', 'verified')
+                    ->count();
+
+                // Get Required Docs Count
+                $raw = json_decode($submission->responses, true) ?? [];
+                $academicStatus = strtolower($raw['Academic Status'] ?? $submission->status ?? 'regular');
+                $requiredDocsCount = 3;
+                if (str_contains($academicStatus, 'als')) {
+                    $requiredDocsCount = 3;
+                } elseif (str_contains($academicStatus, 'feree') || str_contains($academicStatus, 'balik')) {
+                    $requiredDocsCount = 3;
+                }
+
+                if ($verifiedCount === 0) {
+                    $submission->requirement_status = 'Pending';
+                    $submission->requirement_color = '#6B7280'; // Gray
+                } elseif ($verifiedCount < $requiredDocsCount) {
+                    $submission->requirement_status = 'Incomplete';
+                    $submission->requirement_color = '#D97706'; // Amber
+                } else {
+                    $submission->requirement_status = 'Complete';
+                    $submission->requirement_color = '#009444'; // Green
+                }
+
+                return $submission;
+            });
 
         // --- Sync & Gradient logic ---
         $lastSync = DB::table('sync_histories')->where('status', 'Success')->latest()->first();

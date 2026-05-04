@@ -117,9 +117,14 @@ class VerificationController extends Controller
             ]);
         }
 
-        // 3. Trigger Arduino Success if approved
+        // 3. Trigger Arduino Success if approved (SKIP for SF9 Front to allow scanning the back)
         if ($action === 'approve') {
-            $this->triggerArduinoSuccess();
+            $prefix = $this->getPrefix($scan->document_type);
+            if ($prefix !== 'sf9') {
+                $this->triggerArduinoSuccess();
+            } else {
+                Log::info("Admin Verification: SF9 Front approved. Skipping 'c0' command to allow back scan.");
+            }
         }
 
         return back()->with('success', 'Document has been ' . $action . 'd.');
@@ -128,12 +133,12 @@ class VerificationController extends Controller
     private function triggerArduinoSuccess() {
         try {
             // 1. Close Slot (F)
-            Http::timeout(3)->post('http://127.0.0.1:51234/api/door', ['action' => 'close']);
+            Http::timeout(3)->post('http://' . env('SERVICE_HOST', '127.0.0.1') . ':51234/api/door', ['action' => 'close']);
             
-            // 2. Trigger Conveyor Belt (w)
-            Http::timeout(3)->post('http://127.0.0.1:51234/api/conveyor/w');
+            // 2. Trigger Conveyor Belt (c0)
+            Http::timeout(3)->post('http://' . env('SERVICE_HOST', '127.0.0.1') . ':51234/api/conveyor/c0');
             
-            Log::info("Admin Verification: Arduino Success commands (F + w) sent.");
+            Log::info("Admin Verification: Arduino Success commands (F + c0) sent.");
         } catch (\Exception $e) {
             Log::error("Admin Verification: Arduino Success Trigger failed: " . $e->getMessage());
         }
@@ -141,10 +146,11 @@ class VerificationController extends Controller
 
     private function getPrefix($docType) {
         $lowerDoc = strtolower($docType);
+        if (str_contains($lowerDoc, 'sf9 back') || str_contains($lowerDoc, 'report card back')) return 'sf9_back';
         if (str_contains($lowerDoc, 'report') || str_contains($lowerDoc, 'sf9')) return 'sf9';
         if (str_contains($lowerDoc, 'birth') || str_contains($lowerDoc, 'psa')) return 'psa';
         if (str_contains($lowerDoc, 'enrollment') || str_contains($lowerDoc, 'form')) return 'enroll_form';
-        if (str_contains($lowerDoc, 'als') || str_contains($lowerDoc, 'alternative')) return 'als_cert';
+        if (str_contains($lowerDoc, 'als') || str_contains($lowerDoc, 'alternative') || str_contains($lowerDoc, 'certificate')) return 'als_cert';
         if (str_contains($lowerDoc, 'affidavit') || str_contains($lowerDoc, 'sworn')) return 'affidavit';
         if (str_contains($lowerDoc, 'moral')) return 'good_moral';
         if (str_contains($lowerDoc, '137') || str_contains($lowerDoc, 'sf10')) return 'sf10';

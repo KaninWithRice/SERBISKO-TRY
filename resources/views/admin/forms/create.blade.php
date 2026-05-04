@@ -6,6 +6,19 @@
 
 {{-- Two-column layout: sticky sidebar + scrollable main --}}
 <div class="py-8 max-w-5xl mx-auto">
+
+    {{-- Global Error Display --}}
+    @if ($errors->any())
+        <div class="mb-6 p-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg shadow-sm">
+            <h4 class="font-bold text-sm mb-2">There were issues with your submission:</h4>
+            <ul class="list-disc list-inside text-xs space-y-1">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     {{-- ── MAIN CONTENT ────────────────────────────────────────────────── --}}
     <div class="min-w-0"
          x-data="formBuilder({{ isset($form) ? json_encode($form->schema) : '[]' }}, '{{ old('school_year', $form->school_year ?? '2026-2027') }}')"
@@ -79,34 +92,6 @@
                             placeholder="Optional instructions shown to students"
                         >{{ old('description', $form->description ?? '') }}</textarea>
                     </div>
-                </div>
-            </div>
-
-            {{-- ── Field ID Cheat Sheet ────────────────────────────────── --}}
-            <div class="bg-[#005288]/5 border border-[#005288]/20 rounded-xl p-5 mb-6">
-                <p class="text-[#005288] font-black text-xs uppercase tracking-widest mb-2">
-                    ⚠️ Field ID Reference — Must match sync.js field names exactly
-                </p>
-                <p class="text-[#005288]/75 text-xs mb-3">
-                    The <span class="font-mono font-bold">Field ID</span> becomes the key in the Firestore response document.
-                    sync.js reads <span class="font-mono">raw.lrn</span>, <span class="font-mono">raw.first_name</span>, etc.
-                    <strong>Click any name to copy it.</strong>
-                </p>
-                <div class="grid grid-cols-4 gap-x-6 gap-y-1.5">
-                    @foreach ([
-                        'lrn','first_name','last_name','middle_name','extension_name','birthday','sex','age',
-                        'place_of_birth','mother_tongue','school_year',
-                        'curr_house_number','curr_street','curr_barangay','curr_city','curr_province','curr_zip_code','curr_country',
-                        'is_perm_same_as_curr','perm_house_number','perm_street','perm_barangay','perm_city','perm_province','perm_zip_code','perm_country',
-                        'mother_last_name','mother_first_name','mother_middle_name','mother_contact_number',
-                        'father_last_name','father_first_name','father_middle_name','father_contact_number',
-                        'guardian_last_name','guardian_first_name','guardian_middle_name','guardian_contact_number',
-                    ] as $field)
-                        <span
-                            class="font-mono text-xs text-[#005288] hover:text-[#00923F] hover:font-bold cursor-pointer transition"
-                            onclick="navigator.clipboard.writeText('{{ $field }}').then(()=>{ this.style.color='#00923F'; setTimeout(()=>this.style.color='',800) })"
-                        >{{ $field }}</span>
-                    @endforeach
                 </div>
             </div>
 
@@ -416,22 +401,78 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
 <script>
+const DEFAULT_QUESTIONS = [
+    { label: 'Basic Student Information', type: 'section' },
+    { field_id: 'lrn', label: 'Learner Reference Number (LRN)', type: 'text', validation: 'lrn_format', required: true },
+    { field_id: 'last_name', label: 'Last Name', type: 'text', validation: 'none', required: true },
+    { field_id: 'first_name', label: 'First Name', type: 'text', validation: 'none', required: true },
+    { field_id: 'middle_name', label: 'Middle Name', type: 'text', validation: 'none', required: false },
+    { field_id: 'extension_name', label: 'Extension Name (e.g., Jr., III)', type: 'text', validation: 'none', required: false },
+    { field_id: 'birthday', label: 'Date of Birth', type: 'date', validation: 'none', required: true },
+    { field_id: 'sex', label: 'Sex', type: 'radio', validation: 'none', required: true, options: ['Male', 'Female'] },
+    { field_id: 'age', label: 'Age', type: 'text', validation: 'numeric_only', required: true },
+    { field_id: 'place_of_birth', label: 'Place of Birth', type: 'text', validation: 'none', required: true },
+    { field_id: 'mother_tongue', label: 'Mother Tongue', type: 'text', validation: 'none', required: true },
+
+    { label: 'Current Address', type: 'section' },
+    { field_id: 'curr_house_number', label: 'House Number', type: 'text', validation: 'none', required: false },
+    { field_id: 'curr_street', label: 'Street', type: 'text', validation: 'none', required: true },
+    { field_id: 'curr_barangay', label: 'Barangay', type: 'text', validation: 'none', required: true },
+    { field_id: 'curr_city', label: 'City/Municipality', type: 'text', validation: 'none', required: true },
+    { field_id: 'curr_province', label: 'Province', type: 'text', validation: 'none', required: true },
+    { field_id: 'curr_zip_code', label: 'Zip Code', type: 'text', validation: 'numeric_only', required: true },
+    { field_id: 'curr_country', label: 'Country', type: 'text', validation: 'none', required: true, placeholder: 'Philippines' },
+
+    { label: 'Permanent Address', type: 'section' },
+    { field_id: 'is_perm_same_as_curr', label: 'Is Permanent Address same as Current Address?', type: 'radio', validation: 'none', required: true, options: ['Yes', 'No'] },
+    { field_id: 'perm_house_number', label: 'House Number (Permanent)', type: 'text', validation: 'none', required: false },
+    { field_id: 'perm_street', label: 'Street (Permanent)', type: 'text', validation: 'none', required: false },
+    { field_id: 'perm_barangay', label: 'Barangay (Permanent)', type: 'text', validation: 'none', required: false },
+    { field_id: 'perm_city', label: 'City/Municipality (Permanent)', type: 'text', validation: 'none', required: false },
+    { field_id: 'perm_province', label: 'Province (Permanent)', type: 'text', validation: 'none', required: false },
+    { field_id: 'perm_zip_code', label: 'Zip Code (Permanent)', type: 'text', validation: 'numeric_only', required: false },
+    { field_id: 'perm_country', label: 'Country (Permanent)', type: 'text', validation: 'none', required: false },
+
+    { label: 'Parent / Guardian Information', type: 'section' },
+    { label: "Mother's Information", type: 'section' },
+    { field_id: 'mother_last_name', label: "Mother's Last Name", type: 'text', validation: 'none', required: true },
+    { field_id: 'mother_first_name', label: "Mother's First Name", type: 'text', validation: 'none', required: true },
+    { field_id: 'mother_middle_name', label: "Mother's Middle Name", type: 'text', validation: 'none', required: false },
+    { field_id: 'mother_contact_number', label: "Mother's Contact Number", type: 'text', validation: 'numeric_only', required: true },
+
+    { label: "Father's Information", type: 'section' },
+    { field_id: 'father_last_name', label: "Father's Last Name", type: 'text', validation: 'none', required: true },
+    { field_id: 'father_first_name', label: "Father's First Name", type: 'text', validation: 'none', required: true },
+    { field_id: 'father_middle_name', label: "Father's Middle Name", type: 'text', validation: 'none', required: false },
+    { field_id: 'father_contact_number', label: "Father's Contact Number", type: 'text', validation: 'numeric_only', required: true },
+
+    { label: "Guardian's Information (if not living with parents)", type: 'section' },
+    { field_id: 'guardian_last_name', label: "Guardian's Last Name", type: 'text', validation: 'none', required: false },
+    { field_id: 'guardian_first_name', label: "Guardian's First Name", type: 'text', validation: 'none', required: false },
+    { field_id: 'guardian_middle_name', label: "Guardian's Middle Name", type: 'text', validation: 'none', required: false },
+    { field_id: 'guardian_contact_number', label: "Guardian's Contact Number", type: 'text', validation: 'numeric_only', required: false },
+];
+
 function formBuilder(initialQuestions, initialSchoolYear) {
+    const questionsToLoad = (initialQuestions && initialQuestions.length > 0) 
+        ? initialQuestions 
+        : DEFAULT_QUESTIONS;
+
     return {
         schoolYear: initialSchoolYear || '2026-2027',
         showAddDropdown: false,
 
-        questions: (initialQuestions || []).map((q, i) => ({
+        questions: questionsToLoad.map((q, i) => ({
             ...q,
-            _key:        q.id || ('new_' + i),
-            _open:       true,
+            _key:        q.id || (q.field_id && !q.field_id.startsWith('section_') ? q.field_id : 'q_' + i + '_' + Date.now()),
+            _open:       (initialQuestions && initialQuestions.length > 0) ? false : true,
             _showPlaceholder: !!q.placeholder,
             _showValidation: false,
-            field_id:    q.field_id || q.id || '',
+            field_id:    q.field_id || (q.type === 'section' ? 'section_' + i : ''),
             required:    Boolean(q.required),
             placeholder: q.placeholder || '',
             options:     (q.options || []).map((o, oi) => ({
-                _okey: 'o_' + i + '_' + oi,
+                _okey: 'o_' + i + '_' + oi + '_' + Date.now(),
                 value: typeof o === 'string' ? o : (o.value || ''),
                 branch: typeof o === 'object' ? (o.branch || '') : '',
             })),
@@ -452,13 +493,14 @@ function formBuilder(initialQuestions, initialSchoolYear) {
         // ── Question CRUD ──────────────────────────────────────────────────
 
         addQuestion(type) {
+            const index = this.questions.length;
             this.questions.push({
                 _key:        'new_' + Date.now(),
                 _open:       true,
                 _showPlaceholder: false,
                 _showValidation: false,
                 id:          '',
-                field_id:    '',
+                field_id:    type === 'section' ? 'section_' + index : '',
                 label:       '',
                 type:        type,
                 validation:  'none',
@@ -520,11 +562,10 @@ function formBuilder(initialQuestions, initialSchoolYear) {
         submitForm(formEl) {
             // Validate field IDs
             const invalid = this.questions
-                .filter(q => q.type !== 'section')
-                .some(q => !q.field_id || !/^[a-z_]+$/.test(q.field_id));
+                .some(q => !q.field_id || !/^[a-z0-9_]+$/.test(q.field_id));
 
             if (invalid) {
-                alert('All questions must have a valid Field ID (lowercase letters and underscores only).');
+                alert('All questions (including section breaks) must have a valid Field ID (lowercase letters, numbers, and underscores only).');
                 return;
             }
 

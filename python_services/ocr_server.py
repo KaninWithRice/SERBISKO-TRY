@@ -13,23 +13,52 @@ CORS(app)
 def log(msg):
     print(f"🟢 [OCR-LOG] {msg}", flush=True)
 
-log("OCR ENGINE v6.1 STARTING...")
-log("HIGH-FIDELITY IMAGE ENHANCEMENT + ADAPTIVE PASS ENABLED")
+log("OCR ENGINE v7.0 STARTING...")
+log("ULTRA-HD PRE-PROCESSING + MULTI-CANDIDATE LRN EXTRACTION")
 
 # Global reader
 reader = easyocr.Reader(['en'], gpu=False)
 
 def clean_text(text):
     text = str(text).lower().replace('ñ', 'n')
-    # Strip box lines and symbols common in grids
     text = re.sub(r'[|\[\]_!/\\(){}:;.\-+=—–]', ' ', text)
     return re.sub(r'\s+', ' ', text).strip()
+
+def normalize_digits(text):
+    norm = text.upper()
+    replacements = {
+        'O': '0', 'D': '0', 'Q': '0', 'U': '0',
+        'I': '1', 'L': '1', '|': '1', 'J': '1', 'T': '1',
+        'Z': '7', 'S': '5', 'G': '6', 'B': '8', 'E': '8',
+        'A': '4', 'Y': '4', 'H': '4', 'K': '4'
+    }
+    for char, digit in replacements.items():
+        norm = norm.replace(char, digit)
+    return re.sub(r'[^0-9]', '', norm)
+
+def extract_candidates(text):
+    """Extracts all potential 12-digit LRNs from text using both raw and normalized approaches."""
+    candidates = []
+    
+    # 1. Raw extraction
+    clean_blob = text.replace(" ", "").replace(":", "").replace("-", "")
+    candidates.extend(re.findall(r'\d{12}', clean_blob))
+    
+    # 2. Normalized extraction
+    norm_blob = normalize_digits(text)
+    candidates.extend(re.findall(r'\d{12}', norm_blob))
+    
+    # 3. Fuzzy sequence (10-14 digits)
+    potentials = re.findall(r'\d{10,14}', norm_blob)
+    for p in potentials:
+        if len(p) != 12: candidates.append(p)
+
+    return list(set(candidates))
 
 def fuzzy_match(expected, text):
     if not expected or expected.lower() == 'unknown': return True
     blob = clean_text(text).replace(" ", "")
     parts = clean_text(expected).split()
-    log(f"Fuzzy Match check: '{expected}' against blob of length {len(blob)}")
     for part in parts:
         if len(part) < 3: continue
         p_clean = part.replace(" ", "")
@@ -55,120 +84,102 @@ def ocr():
         file = request.files['image']
         img_bytes = file.read()
         img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
-        
-        if img is None:
-            return jsonify({'success': False, 'error': 'Invalid image format.'}), 400
+        if img is None: return jsonify({'success': False, 'error': 'Invalid image format.'}), 400
 
-        # --- HIGH-QUALITY PRE-PROCESSING PIPELINE ---
-        
-        # 1. Resize if too large
+        # --- SMART HIGH-DEFINITION PRE-PROCESSING ---
         h, w = img.shape[:2]
-        if max(h, w) > 3000:
-            scale = 3000 / max(h, w)
+        # Upscale small images to improve OCR accuracy
+        if w < 2000:
+            scale = 2000 / w
             img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_LANCZOS4)
-
-        # 2. Denoising
-        denoised = cv2.fastNlMeansDenoisingColored(img, None, 10, 10, 7, 21)
-        gray = cv2.cvtColor(denoised, cv2.COLOR_BGR2GRAY)
         
-        # Pass 1: CLAHE Enhanced
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Pass 1: Enhanced (CLAHE)
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
         enhanced = clahe.apply(gray)
-
-        # Pass 2: Adaptive Thresholding (Stronger for high-contrast text)
-        thresh = cv2.adaptiveThreshold(enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-
-        # Pass 3: Sharpened
+        
+        # Pass 2: Sharp Binarization
+        thresh = cv2.adaptiveThreshold(enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, 10)
+        
+        # Pass 3: Denoised & Sharpened
+        denoised = cv2.fastNlMeansDenoising(enhanced, None, 10, 7, 21)
         kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
-        sharpened = cv2.filter2D(enhanced, -1, kernel)
+        sharpened = cv2.filter2D(denoised, -1, kernel)
 
-        # Sequential Scanning
+        # Pass 4: Morphological (Dilation) for thin handwriting
+        kernel_dilate = np.ones((2,2), np.uint8)
+        dilated = cv2.dilate(thresh, kernel_dilate, iterations=1)
+
         best_text = ""
         found_doc = False
+        all_lrn_candidates = []
         
-        # We try 3 different image versions to catch the best OCR
-        for p_idx, proc_img in enumerate([enhanced, thresh, sharpened]):
-            if found_doc: break
-            p_name = ["ENHANCED", "THRESHOLD", "SHARPENED"][p_idx]
-            log(f"Starting Scan Pass: {p_name}")
-            
-            # Try 4 orientations
-            for r_idx, rot in enumerate([None, cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_180, cv2.ROTATE_90_COUNTERCLOCKWISE]):
-                r_name = ["0°", "90°", "180°", "270°"][r_idx]
+        # Execute multi-pass OCR
+        # P1: Enhanced, P2: Threshold, P3: Sharpened, P4: Dilated
+        for p_idx, proc_img in enumerate([enhanced, thresh, sharpened, dilated]):
+            p_name = ["ENHANCED", "THRESHOLD", "SHARPENED", "DILATED"][p_idx]
+            for r_idx, rot in enumerate([None, cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_90_COUNTERCLOCKWISE]):
                 rotated = proc_img if rot is None else cv2.rotate(proc_img, rot)
-                results = reader.readtext(rotated, detail=0, paragraph=True)
-                text = " ".join(results).lower()
+                
+                # --- PASS A: GENERAL (For Name/Keywords) ---
+                results = reader.readtext(rotated, detail=1, paragraph=False)
+                text = " ".join([res[1] for res in results]).lower()
                 clean_blob = text.replace(" ", "")
                 
-                log(f"OCR ({p_name} @ {r_name}): Read {len(text)} chars. Snippet: {text[:80]}")
+                log(f"OCR ({p_name} @ {r_idx*90}°): Read {len(text)} chars.")
                 
-                # Logic: Check document type keywords
                 is_match = False
                 if 'report' in doc_type or 'sf9' in doc_type:
-                    keywords = ['sf9', 'reportcard', 'form9', 'deped', 'republicofthephilippines', 'attendance', 'progressreport', 'learnerinformation']
+                    keywords = ['sf9', 'reportcard', 'form9', 'deped', 'republic', 'attendance', 'progress', 'learner', 'schoolform9']
                     if any(k in clean_blob for k in keywords): is_match = True
-                elif 'birth' in doc_type or 'psa' in doc_type:
-                    keywords = ['birth', 'psa', 'nso', 'registry', 'certificateoflive', 'civilregistrar', 'republicofthephilippines']
-                    if any(k in clean_blob for k in keywords): is_match = True
-                elif 'enroll' in doc_type:
-                    keywords = ['enrollment', 'basiceducation', 'learnerinformation', 'beal', 'personaldata', 'deped']
-                    if any(k in clean_blob for k in keywords): is_match = True
-                elif 'als' in doc_type:
-                    keywords = ['als', 'alternativelearning', 'rating', 'certificateofcompletion', 'deped']
-                    if any(k in clean_blob for k in keywords): is_match = True
-                elif 'moral' in doc_type:
-                    keywords = ['moral', 'character', 'recommendation', 'goodbehavior', 'conduct']
-                    if any(k in clean_blob for k in keywords): is_match = True
-                else:
-                    is_match = True 
+                else: is_match = True 
                 
                 if is_match:
-                    log(f"DOCUMENT MATCH FOUND ({p_name} @ {r_name})!")
-                    best_text = text
                     found_doc = True
-                    break
-                
-                if len(text) > len(best_text): best_text = text
+                    if len(text) > len(best_text): best_text = text
+                    all_lrn_candidates.extend(extract_candidates(text))
+
+                # --- PASS B: NUMERIC ONLY (Targeted for handwritten digits) ---
+                # We use allowlist to force shapes to be digits (very effective for handwriting)
+                num_results = reader.readtext(rotated, detail=0, allowlist='0123456789', mag_ratio=1.5)
+                num_text = " ".join(num_results)
+                all_lrn_candidates.extend(extract_candidates(num_text))
+            
+            if found_doc and any(len(c) == 12 for c in all_lrn_candidates): break
 
         if not found_doc:
-            log("DOCUMENT TYPE MISMATCH - No keywords found in any pass.")
-            return jsonify({'success': False, 'error': f"Document mismatch. Ensure the {doc_type.replace('_', ' ').title()} is well-lit and flat."})
+            return jsonify({'success': False, 'error': f"Document mismatch. Ensure it is an SF9 and well-lit."})
 
-        # Step 2: Verify LRN (For Report Card only)
+        # Name Verification
+        name_verified = fuzzy_match(first_name, best_text) and fuzzy_match(last_name, best_text)
+        if not name_verified:
+            log(f"NAME MISMATCH. Best read snippet: {best_text[:200]}")
+            return jsonify({'success': False, 'error': f"Name mismatch. Name '{first_name} {last_name}' not found on card."})
+
+        # LRN Processing
         if 'report' in doc_type or 'sf9' in doc_type:
-            clean_blob = best_text.replace(" ", "").replace(":", "").replace("-", "")
-            log("Extracting LRN from blob...")
-            # Look for 12 digits
-            lrn_matches = re.findall(r'\d{12}', clean_blob)
-            if lrn_matches:
-                lrn = lrn_matches[0]
-                log(f"LRN VERIFIED: {lrn}")
-                return jsonify({'success': True, 'lrn': lrn, 'message': "SF9 and LRN Verified!"})
-            else:
-                log("LRN NOT FOUND in text.")
-                return jsonify({'success': False, 'error': "SF9 found, but 12-digit LRN is unreadable. Please ensure it is sharp."})
-        
-        # Step 3: Verify Names
-        log("Verifying Student Name...")
-        if not fuzzy_match(first_name, best_text):
-            log(f"First Name '{first_name}' mismatch.")
-            return jsonify({'success': False, 'error': f"Document found, but First Name ({first_name}) missing."})
-        if not fuzzy_match(last_name, best_text):
-            log(f"Last Name '{last_name}' mismatch.")
-            return jsonify({'success': False, 'error': f"Document found, but Last Name ({last_name}) missing."})
+            log(f"BEST TEXT EXTRACTED: {best_text[:500]}")
+            # Clean and filter candidates
+            unique_candidates = sorted(list(set(all_lrn_candidates)), key=lambda x: (abs(len(x)-12), x.startswith('000')))
             
-        log("SUCCESS: Document fully verified.")
-        return jsonify({'success': True, 'message': f"{doc_type.replace('_', ' ').title()} Verified!"})
+            if unique_candidates:
+                best_lrn = unique_candidates[0]
+                log(f"LRN Candidates: {unique_candidates}")
+                return jsonify({
+                    'success': True, 
+                    'lrn': best_lrn, 
+                    'candidates': unique_candidates,
+                    'message': "SF9 and LRN Verified!"
+                })
+            else:
+                return jsonify({'success': False, 'error': "SF9 found, but 12-digit LRN is unreadable."})
+            
+        return jsonify({'success': True, 'message': "Document Verified!"})
 
     except Exception as e:
-        log(f"FATAL ERROR: {str(e)}")
+        log(f"ERROR: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/status')
-def status(): return jsonify({'status': 'online'})
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=9001, threaded=True)
 
 @app.route('/status')
 def status(): return jsonify({'status': 'online'})

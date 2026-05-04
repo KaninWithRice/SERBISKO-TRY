@@ -23,8 +23,8 @@ use App\Http\Controllers\Admin\NotificationController;
 | Public Routes
 |--------------------------------------------------------------------------
 */
-Route::get('/', function () {return view('login');})->name('home');
-Route::get('/login', function () {return view('login');})->name('login');
+Route::get('/', [AuthController::class, 'showLogin'])->name('home');
+Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::match(['get', 'post'], '/logout', [AuthController::class, 'logout'])->name('logout');
 
@@ -97,28 +97,28 @@ Route::middleware([CheckAdmin::class])->group(function () {
 // STUDENT ENROLLMENT FLOW (Protected)
 // ==========================================
 Route::get('/student/grade-selection', function () {
-    if (!session()->has('user_id')) return redirect('/');
+    if (!Auth::check()) return redirect('/');
     return view('student.selection');
 });
 
 Route::post('/student/save-grade', [EnrollmentController::class, 'saveGrade']);
 
 Route::get('/student/status-selection', function () {
-    if (!session()->has('user_id')) return redirect('/');
+    if (!Auth::check()) return redirect('/');
     return view('student.status');
 });
 
 Route::post('/student/save-status', [EnrollmentController::class, 'saveStatus']);
 
 Route::get('/student/track-selection', function () {
-    if (!session()->has('user_id')) return redirect('/');
+    if (!Auth::check()) return redirect('/');
     return view('student.track');
 });
 
 Route::post('/student/save-track', [EnrollmentController::class, 'saveTrack']);
 
 Route::get('/student/cluster-selection', function () {
-    if (!session()->has('user_id')) return redirect('/');
+    if (!Auth::check()) return redirect('/');
     return view('student.cluster');
 });
 
@@ -126,7 +126,7 @@ Route::get('/student/cluster-selection', function () {
 Route::post('/student/save-cluster', [EnrollmentController::class, 'saveCluster']);
 
 Route::get('/student/cluster-loading', function () {
-    if (!session()->has('user_id')) return redirect('/');
+    if (!Auth::check()) return redirect('/');
     return view('student.cluster_loading');
 });
 
@@ -141,7 +141,7 @@ Route::get('/student/capture', [EnrollmentController::class, 'showCapture']);
 Route::post('/student/save-image', [ScanController::class, 'processDocument']);
 
 Route::get('/student/verifying', function () {
-    if (!session()->has('user_id')) return redirect('/');
+    if (!Auth::check()) return redirect('/');
     return view('student.verifying');
 });
 
@@ -149,7 +149,9 @@ Route::get('/student/check-scan-status', [ScanController::class, 'checkScanStatu
 Route::get('/student/check-rejection', [ScanController::class, 'checkRejection']);
 
 Route::get('/api/check-completion', function () {
-    $userId = session('user_id', 1);
+    $userId = Auth::id();
+    if (!$userId) return response()->json(['status' => 'unauthorized'], 401);
+    
     $record = DB::table('kiosk_enrollments')
                 ->join('students', 'kiosk_enrollments.student_id', '=', 'students.id')
                 ->where('students.user_id', $userId) 
@@ -162,14 +164,11 @@ Route::get('/api/check-completion', function () {
 });
 
 Route::get('/student/mismatch', function () {
-    if (!session()->has('user_id')) return redirect('/');
+    if (!Auth::check()) return redirect('/');
     return view('student.mismatch'); 
 });
 
-Route::get('/student/thankyou', function () {
-    if (!session()->has('user_id')) return redirect('/');
-    return view('student.thankyou');
-});
+Route::get('/student/thankyou', [EnrollmentController::class, 'showThankYou']);
 
 // ==========================================
 // PYTHON WEBHOOKS (CSRF Exempt)

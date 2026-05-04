@@ -11,13 +11,12 @@
         body { font-family: 'Google Sans', sans-serif; }
         [x-cloak] { display: none !important; }
         .custom-gradient { background: linear-gradient(90deg, #1b5e20 0%, #2e7d32 40%, #f3f4f6 100%); }
-        input[type="date"]::-webkit-calendar-picker-indicator {
-            background: transparent; bottom: 0; color: transparent; cursor: pointer;
-            height: auto; left: 0; position: absolute; right: 0; top: 0; width: auto;
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #00923F; border-radius: 10px; }
     </style>
 </head>
-<body class="custom-gradient min-h-screen flex items-center justify-center p-8 md:p-16 relative overflow-hidden">
+<body class="custom-gradient min-h-screen flex items-center justify-center p-8 md:p-16 relative overflow-x-hidden overflow-y-auto">
 
     <div class="absolute left-[-10%] top-[-10%] w-[60vh] h-[60vh] opacity-10 pointer-events-none">
         <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="w-full h-full fill-white">
@@ -46,7 +45,8 @@
                 </div>
             @endif
 
-            <form action="{{ url('/login') }}" method="POST" class="space-y-5"
+            <form action="{{ url('/login') }}" method="POST" class="space-y-5 mb-12"
+                autocomplete="no-autocomplete"
                 x-data="{ 
                     loading: false,
                     errors: {
@@ -66,6 +66,8 @@
                         <label class="text-xs font-bold text-gray-700 mb-1 ml-1">Last Name</label>
                         <input type="text" name="last_name" value="{{ old('last_name') }}" 
                             placeholder="Last Name"
+                            autocomplete="off"
+                            readonly onfocus="this.removeAttribute('readonly');" onmousedown="this.removeAttribute('readonly');"
                             @input="errors.last_name = false"
                             :class="errors.last_name ? 'border-red-700' : 'border-green-700/30'"
                             class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none">
@@ -78,6 +80,8 @@
                         <label class="text-xs font-bold text-gray-700 mb-1 ml-1">Given Name</label>
                         <input type="text" name="given_name" value="{{ old('given_name') }}"
                             placeholder="Given Name"
+                            autocomplete="off"
+                            readonly onfocus="this.removeAttribute('readonly');" onmousedown="this.removeAttribute('readonly');"
                             @input="errors.given_name = false"
                             :class="errors.given_name ? 'border-red-700' : 'border-green-700/30'"
                             class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none">
@@ -93,6 +97,8 @@
 
                         <input type="text" name="middle_name" value="{{ old('middle_name') }}" 
                             placeholder="Middle Name" 
+                            autocomplete="off"
+                            readonly onfocus="this.removeAttribute('readonly');" onmousedown="this.removeAttribute('readonly');"
                             @input="errors.middle_name = false"
                             :class="errors.middle_name ? 'border-red-700' : 'border-green-700/30'"
                             class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none">
@@ -107,15 +113,71 @@
 
                 <div class="flex flex-col">
                     <label class="text-xs font-bold text-gray-700 mb-1 ml-1">Date of Birth</label>
-                    <div class="relative">
-                        <input type="date" name="dob" value="{{ old('dob') }}"
-                            @change="errors.dob = false"
-                            :class="errors.dob ? 'border-red-700' : 'border-green-700/30'"
-                            class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none text-gray-600 appearance-none">
-                        <div class="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
+                    <div class="grid grid-cols-3 gap-3">
+                        {{-- Month Dropdown --}}
+                        <div class="relative" x-data="{ open: false, selected: '{{ old('dob_month', '') }}', months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] }">
+                            <button type="button" @click="open = !open" 
+                                :class="errors.dob ? 'border-red-700' : 'border-green-700/30'"
+                                class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none text-gray-600 text-left flex justify-between items-center cursor-pointer overflow-hidden">
+                                <span class="truncate" x-text="selected ? months[selected-1] : 'Month'"></span>
+                                <svg class="w-4 h-4 text-blue-900 shrink-0 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                            <input type="hidden" name="dob_month" :value="selected">
+                            <div x-show="open" x-cloak @click.away="open = false" 
+                                class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+                                <template x-for="(m, index) in months" :key="index">
+                                    <div @click="selected = index + 1; open = false; errors.dob = false" 
+                                        class="px-4 py-2 hover:bg-green-50 cursor-pointer text-gray-700 font-medium border-b border-gray-50 last:border-none"
+                                        :class="selected == index + 1 ? 'bg-green-50' : ''"
+                                        x-text="m"></div>
+                                </template>
+                            </div>
+                        </div>
+
+                        {{-- Day Dropdown --}}
+                        <div class="relative" x-data="{ open: false, selected: '{{ old('dob_day', '') }}' }">
+                            <button type="button" @click="open = !open" 
+                                :class="errors.dob ? 'border-red-700' : 'border-green-700/30'"
+                                class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none text-gray-600 text-left flex justify-between items-center cursor-pointer">
+                                <span x-text="selected ? (selected < 10 ? '0' + selected : selected) : 'Day'"></span>
+                                <svg class="w-4 h-4 text-blue-900 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                            <input type="hidden" name="dob_day" :value="selected">
+                            <div x-show="open" x-cloak @click.away="open = false" 
+                                class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+                                @foreach(range(1, 31) as $d)
+                                    <div @click="selected = '{{ $d }}'; open = false; errors.dob = false" 
+                                        class="px-4 py-2 hover:bg-green-50 cursor-pointer text-gray-700 font-medium border-b border-gray-50 last:border-none"
+                                        :class="selected == '{{ $d }}' ? 'bg-green-50' : ''">
+                                        {{ sprintf('%02d', $d) }}
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        {{-- Year Dropdown --}}
+                        <div class="relative" x-data="{ open: false, selected: '{{ old('dob_year', '') }}' }">
+                            <button type="button" @click="open = !open" 
+                                :class="errors.dob ? 'border-red-700' : 'border-green-700/30'"
+                                class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none text-gray-600 text-left flex justify-between items-center cursor-pointer">
+                                <span x-text="selected ? selected : 'Year'"></span>
+                                <svg class="w-4 h-4 text-blue-900 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                            <input type="hidden" name="dob_year" :value="selected">
+                            <div x-show="open" x-cloak @click.away="open = false" 
+                                class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+                                @php
+                                    $currentYear = date('Y');
+                                    $startYear = $currentYear - 100;
+                                @endphp
+                                @foreach(range($currentYear, $startYear) as $y)
+                                    <div @click="selected = '{{ $y }}'; open = false; errors.dob = false" 
+                                        class="px-4 py-2 hover:bg-green-50 cursor-pointer text-gray-700 font-medium border-b border-gray-50 last:border-none"
+                                        :class="selected == '{{ $y }}' ? 'bg-green-50' : ''">
+                                        {{ $y }}
+                                    </div>
+                                @endforeach
+                            </div>
                         </div>
                     </div>
                     <template x-if="errors.dob">
@@ -128,6 +190,7 @@
                     <div class="relative">
                         <input :type="show ? 'text' : 'password'" name="password" 
                             placeholder="Password"
+                            autocomplete="current-password"
                             @input="errors.password = false"
                             :class="errors.password ? 'border-red-700' : 'border-green-700/30'"
                             class="w-full px-4 py-3 rounded-xl border-2 transition-all bg-white/50 focus:bg-white outline-none pr-12">

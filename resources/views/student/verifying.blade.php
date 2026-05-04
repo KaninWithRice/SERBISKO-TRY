@@ -133,14 +133,14 @@
             try {
                 // 1. Close Slot Door First (f command)
                 console.log("📡 Closing Slot Door...");
-                await fetch('http://127.0.0.1:51234/api/door/close', { method: 'POST' });
+                await fetch(`http://${window.location.hostname}:51234/api/door/close`, { method: 'POST' });
                 
                 // Small delay to ensure door is closed before conveyor starts
                 await new Promise(resolve => setTimeout(resolve, 500));
 
-                // 2. Send 'W' command to Arduino via Python Server
-                console.log("📡 Triggering Conveyor (W)...");
-                await fetch('http://127.0.0.1:51234/api/conveyor/w', { method: 'POST' });
+                // 2. Send 'C0' command to Arduino via Python Server
+                console.log("📡 Triggering Conveyor (C0)...");
+                await fetch(`http://${window.location.hostname}:51234/api/conveyor/c0`, { method: 'POST' });
                 
                 // 3. Transition UI to Storing Card
                 setTimeout(() => {
@@ -181,29 +181,6 @@
                 })
                 .catch(err => console.warn("Background hardware poll suppressed error:", err));
         }
-
-        function showCard(cardId) {
-            const cards = ['loading-card', 'admin-review-card', 'success-card', 'storing-card', 'error-card', 'halted-card'];
-            cards.forEach(id => {
-                const el = document.getElementById(id);
-                if (!el.classList.contains('hidden') && id !== cardId) {
-                    el.classList.remove('scale-100', 'opacity-100');
-                    el.classList.add('scale-95', 'opacity-0');
-                    setTimeout(() => el.classList.add('hidden'), 500);
-                }
-            });
-            setTimeout(() => {
-                const target = document.getElementById(cardId);
-                target.classList.remove('hidden');
-                requestAnimationFrame(() => {
-                    target.classList.remove('scale-95', 'opacity-0');
-                    target.classList.add('scale-100', 'opacity-100');
-                });
-            }, 500); 
-        }
-
-        pollInterval = setInterval(checkStatus, 2000);
-    </script>
 
         function showCard(cardId) {
             const cards = ['loading-card', 'admin-review-card', 'success-card', 'storing-card', 'error-card', 'halted-card'];

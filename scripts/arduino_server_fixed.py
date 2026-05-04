@@ -15,48 +15,31 @@ print("🤖 SERBISKO HARDWARE CONTROLLER ONLINE!")
 print("="*50 + "\n")
 
 def find_arduino_port(baud=9600, timeout=1):
-    """Scan available serial ports and try to open one that responds like an Arduino."""
-    # Prioritize ACM/USB ports and check descriptions for 'Arduino'
-    all_ports = list(serial.tools.list_ports.comports())
-    
-    # First pass: try ports that explicitly mention 'Arduino'
-    for port in all_ports:
-        desc = (port.description or "").lower()
-        if "arduino" in desc:
-            try:
-                ser = serial.Serial(port.device, baud, timeout=timeout)
-                time.sleep(2)
-                if ser.is_open:
-                    print(f"🔍 Found Arduino on {port.device} ({port.description})")
-                    return ser
-            except Exception:
-                continue
-
-    # Second pass: try any ACM or USB ports
-    for port in all_ports:
-        if "ACM" in port.device or "USB" in port.device:
-            try:
-                ser = serial.Serial(port.device, baud, timeout=timeout)
-                time.sleep(2)
-                if ser.is_open:
-                    print(f"🔍 Found potential Arduino on {port.device} ({port.description})")
-                    return ser
-            except Exception:
-                continue
-                
-    # Final pass: try anything that isn't a standard ttyS port (fallback to anything if desperate)
-    for port in all_ports:
-        if "ttyS" in port.device:
-            continue
+    """Try to open the Arduino port with multiple attempts."""
+    target_port = "/dev/ttyACM0"
+    for attempt in range(3):
         try:
-            ser = serial.Serial(port.device, baud, timeout=timeout)
+            print(f"🔍 Attempt {attempt+1}: Opening {target_port}")
+            ser = serial.Serial(target_port, baud, timeout=timeout)
             time.sleep(2)
             if ser.is_open:
-                print(f"🔍 Fallback: Found serial device on {port.device} ({port.description})")
+                print(f"✅ Success! Connected to {target_port}")
                 return ser
-        except Exception:
-            continue
-            
+        except Exception as e:
+            print(f"❌ Attempt {attempt+1} failed: {e}")
+            time.sleep(1)
+    
+    # Final Fallback scan
+    print("🔍 Scanning all available ports...")
+    for p in serial.tools.list_ports.comports():
+        try:
+            ser = serial.Serial(p.device, baud, timeout=timeout)
+            time.sleep(2)
+            if ser.is_open:
+                print(f"✅ Connected to fallback port: {p.device}")
+                return ser
+        except: continue
+                
     return None
 
 arduino = find_arduino_port()
@@ -69,8 +52,18 @@ def monitor_connection(interval=5):
     global arduino
     while True:
         if arduino and arduino.is_open:
+            # Check if connection is still alive
+            try:
+                # Minor check to see if port is responsive
+                if arduino.in_waiting >= 0:
+                    pass
+            except:
+                print("⚠️ Arduino disconnected detected in monitor.")
+                arduino = None
+            
             time.sleep(interval)
             continue
+            
         ser = find_arduino_port()
         if ser:
             arduino = ser
@@ -85,7 +78,9 @@ def send_command(cmd):
     global arduino
     if arduino and getattr(arduino, 'is_open', False):
         try:
-            arduino.write((cmd + '\n').encode())
+            arduino.write((cmd + '\r\n').encode())
+            time.sleep(0.05) # Small delay to allow write to complete
+            arduino.flush() # Ensure command is sent immediately
             print(f"📡 Sent to Arduino: [{cmd}]")
             return True
         except Exception as e:
@@ -130,17 +125,25 @@ def start_conveyor():
     threading.Thread(target=conveyor_timer).start()
     return jsonify({'status': 'success', 'command': 'c0', 'message': 'Conveyor started. Will auto-stop in 6s.'})
 
-@app.route('/api/conveyor/w', methods=['POST'])
-def trigger_w():
-    send_command('w')
+@app.route('/api/conveyor/stop', methods=['POST'])
+def stop_conveyor():
+    send_command('c1')
+    return jsonify({'status': 'success', 'command': 'c1', 'message': 'Conveyor stopped manually (c1)'})
+
+@app.route('/api/conveyor/c0', methods=['POST'])
+def trigger_c0():
+    send_command('c0')
     
     def delayed_c1():
-        time.sleep(10)
+        time.sleep(5)
+        # Send twice for extra reliability
         send_command('c1')
-        print("🛑 Conveyor Auto-Stopped after W (c1 triggered).")
+        time.sleep(0.5)
+        send_command('c1')
+        print("🛑 Conveyor Auto-Stopped after C0 (c1 triggered twice).")
         
     threading.Thread(target=delayed_c1).start()
-    return jsonify({'status': 'success', 'command': 'w', 'message': 'Conveyor W command triggered. c1 in 10s.'})
+    return jsonify({'status': 'success', 'command': 'c0', 'message': 'Conveyor C0 command triggered. c1 in 5s.'})
 
 # ==========================================
 # 3. BIN ROUTING (Fixes the /api/strand/be 404 error)

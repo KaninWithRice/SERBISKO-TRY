@@ -373,7 +373,7 @@ class="p-6 font-['Inter'] tracking-normal space-y-4">
                         </div>
                     </div>
 
-                    <!-- Sync Data -->
+                    <!-- Additional Info -->
                     <div class="space-y-4 pt-4 border-t border-dashed border-gray-100 mt-2">
                         <div class="relative">
                             <label class="block text-[9px] font-black text-gray-300 mb-1 uppercase">Track</label>

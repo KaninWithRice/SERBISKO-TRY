@@ -36,7 +36,8 @@ class StudentController extends Controller
                 'kiosk_enrollments.grade_level as kiosk_grade',
                 'kiosk_enrollments.track as kiosk_track',
                 'kiosk_enrollments.cluster as kiosk_cluster',
-                'kiosk_enrollments.academic_status as kiosk_status'
+                'kiosk_enrollments.academic_status as kiosk_status',
+                'kiosk_enrollments.receipt_number'
             );
 
         if ($request->filled('search')) {
@@ -45,7 +46,8 @@ class StudentController extends Controller
                 $q->where('users.first_name', 'like', "%{$searchTerm}%")
                 ->orWhere('users.last_name', 'like', "%{$searchTerm}%")
                 ->orWhere('users.middle_name', 'like', "%{$searchTerm}%")
-                ->orWhere('students.lrn', 'like', "%{$searchTerm}%");
+                ->orWhere('students.lrn', 'like', "%{$searchTerm}%")
+                ->orWhere('kiosk_enrollments.receipt_number', 'like', "%{$searchTerm}%");
             });
         }
 
@@ -84,10 +86,12 @@ class StudentController extends Controller
             $status = $request->status;
             if ($status === 'Registered') {
                 $query->whereNull('kiosk_enrollments.grade_level');
-            } elseif ($status === 'Document Verified') {
-                $query->whereNotNull('kiosk_enrollments.grade_level');
-            } elseif ($status === 'Officially Enrolled') {
-                $query->where('kiosk_enrollments.academic_status', 'Officially Enrolled');
+            } elseif ($status === 'Partial Compliance') {
+                $query->whereNotNull('kiosk_enrollments.grade_level')
+                      ->where('kiosk_enrollments.academic_status', '!=', 'Enrolled');
+                // Note: More precise logic for Partial vs For Enrollment would need count of verified docs
+            } elseif ($status === 'Enrolled') {
+                $query->where('kiosk_enrollments.academic_status', 'Enrolled');
             }
         }
 
@@ -136,17 +140,6 @@ class StudentController extends Controller
             $student->display_status  = $asString(($details['Academic Status'] ?? null) ?? ($student->kiosk_status ?? '—'));
             $student->display_cluster = $asString($student->kiosk_cluster ?? ($acronyms[$asString($jsonCluster)] ?? $jsonCluster));
 
-            if ($student->kiosk_status === 'Officially Enrolled') {
-                $student->enrollment_category = 'Officially Enrolled';
-                $student->status_style = 'bg-[#003918] text-white border-green-900';
-            } elseif (!empty($student->kiosk_grade)) {
-                $student->enrollment_category = 'Document Verified';
-                $student->status_style = 'bg-[#00923F] text-white border-green-200';
-            } else {
-                $student->enrollment_category = 'Registered';
-                $student->status_style = 'bg-[#048F81] text-white border-[#048F81]';
-            }
-
             // Check verified scans for this student (using lrn or user_id)
             $verifiedCount = DB::table('scans')
                 ->where(function($q) use ($student) {
@@ -156,8 +149,41 @@ class StudentController extends Controller
                 ->where('status', 'verified')
                 ->count();
 
-            $student->requirement_display = $verifiedCount > 0 ? 'Verified' : 'Pending';
-            $student->requirement_style = $verifiedCount > 0 ? 'text-green-600 font-bold' : 'text-gray-600';
+            // Determine Required Docs Count
+            $academicStatus = strtolower($student->display_status);
+            $requiredDocsCount = 3; // Regular default
+            if (str_contains($academicStatus, 'als')) {
+                $requiredDocsCount = 3; // Updated requirement (ALS: Rating, Form, PSA)
+            } elseif (str_contains($academicStatus, 'feree') || str_contains($academicStatus, 'balik')) {
+                $requiredDocsCount = 3; // Updated requirement (Transferee: SF9, PSA, Form)
+            }
+
+            // Requirement Status Alignment
+            if ($verifiedCount === 0) {
+                $student->requirement_display = 'Pending';
+                $student->requirement_style = 'text-gray-500 font-medium';
+            } elseif ($verifiedCount < $requiredDocsCount) {
+                $student->requirement_display = 'Incomplete';
+                $student->requirement_style = 'text-amber-600 font-bold';
+            } else {
+                $student->requirement_display = 'Complete';
+                $student->requirement_style = 'text-green-600 font-bold';
+            }
+
+            // Student Status Alignment
+            if ($student->kiosk_status === 'Enrolled' || $student->kiosk_status === 'Officially Enrolled') {
+                $student->enrollment_category = 'Enrolled';
+                $student->status_style = 'bg-[#003918] text-white border-green-900';
+            } elseif ($student->requirement_display === 'Complete') {
+                $student->enrollment_category = 'For Enrollment';
+                $student->status_style = 'bg-[#005288] text-white border-blue-900';
+            } elseif (!empty($student->kiosk_grade)) {
+                $student->enrollment_category = 'Partial Compliance';
+                $student->status_style = 'bg-[#00923F] text-white border-green-200';
+            } else {
+                $student->enrollment_category = 'Registered';
+                $student->status_style = 'bg-[#048F81] text-white border-[#048F81]';
+            }
 
             return $student;
         });

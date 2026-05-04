@@ -107,12 +107,13 @@
                 <h3 class="text-xs font-black text-[#004225] uppercase tracking-widest mb-3">Public Link</h3>
                 <div class="bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 mb-3 break-all">
                     <a href="{{ $studentViewUrl }}" target="_blank"
+                       id="formUrl"
                        class="text-xs text-[#00923F] hover:underline font-mono">
                         {{ $studentViewUrl }}
                     </a>
                 </div>
                 <button
-                    onclick="navigator.clipboard.writeText('{{ $studentViewUrl }}').then(() => { this.textContent = '✓ Copied!'; setTimeout(() => this.textContent = 'Copy Full Link', 2000) })"
+                    onclick="copyToClipboard('{{ $studentViewUrl }}', this)"
                     class="w-full bg-[#00923F] hover:bg-[#004225] text-white text-xs font-black uppercase tracking-widest py-2.5 rounded-xl transition shadow-sm"
                 >
                     Copy Full Link
@@ -139,4 +140,50 @@
         </div>
     </div>
 </div>
+
+<script>
+function copyToClipboard(text, btn) {
+    if (navigator.clipboard && window.isSecureContext) {
+        // Secure context: use navigator.clipboard
+        navigator.clipboard.writeText(text).then(() => {
+            updateBtn(btn);
+        }).catch(err => {
+            console.error('Clipboard error:', err);
+            fallbackCopy(text, btn);
+        });
+    } else {
+        // Non-secure context or fallback
+        fallbackCopy(text, btn);
+    }
+}
+
+function fallbackCopy(text, btn) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    // Ensure it's not visible but still in the DOM
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+        document.execCommand('copy');
+        updateBtn(btn);
+    } catch (err) {
+        console.error('Fallback error:', err);
+    }
+    document.body.removeChild(textArea);
+}
+
+function updateBtn(btn) {
+    const originalText = btn.textContent;
+    btn.textContent = '✓ Copied!';
+    btn.classList.replace('bg-[#00923F]', 'bg-blue-600');
+    setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.replace('bg-blue-600', 'bg-[#00923F]');
+    }, 2000);
+}
+</script>
 @endsection
