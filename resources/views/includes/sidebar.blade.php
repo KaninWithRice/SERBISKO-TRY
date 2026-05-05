@@ -100,6 +100,17 @@
                         <span class="leading-tight">Sync Conflicts</span>
                     </a>
                 </li>
+
+                <li>
+                    <a href="{{ route('admin.hardware.index') }}" class="flex items-center gap-10 px-4 py-3 text-[#003918] font-semibold rounded-xl hover:bg-[#00923F]/5 transition-colors group {{ isActive('admin.hardware.index') }}">
+                        <div class="w-6 flex justify-center shrink-0">
+                            <svg class="w-6 h-6 fill-current opacity-80 group-hover:opacity-100" viewBox="0 0 24 24">
+                                <path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                            </svg>
+                        </div>
+                        <span class="leading-tight">Hardware</span>
+                    </a>
+                </li>
                 @endif
             </ul>
         </nav>

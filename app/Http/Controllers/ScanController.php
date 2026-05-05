@@ -202,8 +202,11 @@ class ScanController extends Controller
                 $ocrResponse = Http::timeout(300)
                     ->attach('image', file_get_contents($imageFullPath), $fileName)
                     ->post('http://'.env('SERVICE_HOST', '127.0.0.1').':9001/ocr', [
-                        'doc_type' => $pythonDocType, 'scan_id' => $userId,
-                        'first_name' => $expectedFirstName, 'last_name' => $expectedLastName
+                        'doc_type' => $pythonDocType, 
+                        'scan_id' => $userId,
+                        'first_name' => $expectedFirstName, 
+                        'last_name' => $expectedLastName,
+                        'expected_lrn' => $expectedLrn
                     ]);
 
                 if ($ocrResponse->failed()) {
@@ -218,9 +221,30 @@ class ScanController extends Controller
                 }
 
                 if (isset($ocrResult['success']) && $ocrResult['success'] === true) {
-                    // --- SMART MATCHMAKING AGAINST STUDENTS TABLE ONLY ---
+                    // --- SMART MATCHMAKING ---
                     $candidates = $ocrResult['candidates'] ?? [$ocrResult['lrn'] ?? null];
-                    $lrn = $this->findBestLrnMatch(array_filter($candidates));
+                    $candidates = array_filter($candidates);
+                    
+                    $lrn = null;
+                    
+                    // 1. Check for 50-60% match specifically with the logged-in user's LRN
+                    if ($expectedLrn) {
+                        $cleanExpected = preg_replace('/[^0-9]/', '', $expectedLrn);
+                        foreach ($candidates as $cand) {
+                            $cleanCand = preg_replace('/[^0-9]/', '', $cand);
+                            similar_text($cleanCand, $cleanExpected, $percent);
+                            if ($percent >= 50) {
+                                Log::info("Fuzzy Match Success with Logged-in User", ['percent' => $percent, 'lrn' => $expectedLrn]);
+                                $lrn = $expectedLrn;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 2. Fallback to general database match if no direct match found
+                    if (!$lrn) {
+                        $lrn = $this->findBestLrnMatch($candidates);
+                    }
                     
                     if ($lrn) DB::table('scans')->where('id', $scanId)->update(['lrn' => $lrn]);
 

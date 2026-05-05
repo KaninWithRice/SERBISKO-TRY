@@ -77,8 +77,9 @@ def ocr():
     doc_type = request.form.get('doc_type', 'generic')
     first_name = request.form.get('first_name', '').lower()
     last_name = request.form.get('last_name', '').lower()
+    expected_lrn = request.form.get('expected_lrn', '')
     
-    log(f"RECEIVED REQUEST: {doc_type.upper()} | NAME: {first_name} {last_name}")
+    log(f"RECEIVED REQUEST: {doc_type.upper()} | NAME: {first_name} {last_name} | EXPECTED LRN: {expected_lrn}")
 
     try:
         file = request.files['image']
@@ -146,26 +147,49 @@ def ocr():
                 num_text = " ".join(num_results)
                 all_lrn_candidates.extend(extract_candidates(num_text))
             
+            # Optimization: If we find a strong match for the expected LRN, we can stop early
+            if expected_lrn:
+                for candidate in all_lrn_candidates:
+                    if difflib.SequenceMatcher(None, expected_lrn, candidate).ratio() >= 0.5:
+                        found_doc = True
+                        break
+            
             if found_doc and any(len(c) == 12 for c in all_lrn_candidates): break
 
         if not found_doc:
             return jsonify({'success': False, 'error': f"Document mismatch. Ensure it is an SF9 and well-lit."})
 
-        # Name Verification
-        name_verified = fuzzy_match(first_name, best_text) and fuzzy_match(last_name, best_text)
-        if not name_verified:
-            log(f"NAME MISMATCH. Best read snippet: {best_text[:200]}")
-            return jsonify({'success': False, 'error': f"Name mismatch. Name '{first_name} {last_name}' not found on card."})
+        # Name Verification (Only for non-SF9 documents)
+        is_sf9 = 'report' in doc_type or 'sf9' in doc_type
+        if not is_sf9:
+            name_verified = fuzzy_match(first_name, best_text) and fuzzy_match(last_name, best_text)
+            if not name_verified:
+                log(f"NAME MISMATCH. Best read snippet: {best_text[:200]}")
+                return jsonify({'success': False, 'error': f"Name mismatch. Name '{first_name} {last_name}' not found on card."})
 
         # LRN Processing
-        if 'report' in doc_type or 'sf9' in doc_type:
+        if is_sf9:
             log(f"BEST TEXT EXTRACTED: {best_text[:500]}")
-            # Clean and filter candidates
-            unique_candidates = sorted(list(set(all_lrn_candidates)), key=lambda x: (abs(len(x)-12), x.startswith('000')))
             
-            if unique_candidates:
-                best_lrn = unique_candidates[0]
-                log(f"LRN Candidates: {unique_candidates}")
+            # Clean and filter candidates
+            unique_candidates = list(set(all_lrn_candidates))
+            
+            best_lrn = None
+            # Prioritize the expected LRN if a 50% match is found
+            if expected_lrn:
+                for candidate in unique_candidates:
+                    if difflib.SequenceMatcher(None, expected_lrn, candidate).ratio() >= 0.5:
+                        log(f"FUZZY MATCH SUCCESS (>=50%): Using expected LRN {expected_lrn} instead of candidate {candidate}")
+                        best_lrn = expected_lrn
+                        break
+            
+            # If no fuzzy match to expected_lrn, fall back to standard selection
+            if not best_lrn and unique_candidates:
+                sorted_candidates = sorted(unique_candidates, key=lambda x: (abs(len(x)-12), x.startswith('000')))
+                best_lrn = sorted_candidates[0]
+            
+            if best_lrn:
+                log(f"LRN Selected: {best_lrn} (Candidates: {unique_candidates})")
                 return jsonify({
                     'success': True, 
                     'lrn': best_lrn, 

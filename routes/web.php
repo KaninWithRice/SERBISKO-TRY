@@ -90,6 +90,10 @@ Route::middleware([CheckAdmin::class])->group(function () {
         Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
         Route::post('/notifications/mark-read', [NotificationController::class, 'markAsRead'])->name('notifications.markRead');
 
+        // Hardware Management
+        Route::get('/hardware', [App\Http\Controllers\Admin\HardwareController::class, 'index'])->name('hardware.index');
+        Route::post('/hardware/collect', [App\Http\Controllers\Admin\HardwareController::class, 'collect'])->name('hardware.collect');
+
     });
 });
 

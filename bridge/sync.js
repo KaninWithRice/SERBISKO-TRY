@@ -99,6 +99,7 @@ async function processDocument(docId, rawInput) {
   const bday       = isValidDate(raw.birthday) ? raw.birthday : null;
   const firstName  = toTitleCase(raw.first_name);
   const lastName   = toTitleCase(raw.last_name);
+  const middleName = toTitleCase(raw.middle_name);
 
   if (!lrn) {
     console.warn(`⚠️  [SKIP] Document ${docId} has no LRN — skipping.`);
@@ -108,6 +109,7 @@ async function processDocument(docId, rawInput) {
   const hasIdentityFields = 
     rawInput.hasOwnProperty('first_name') || 
     rawInput.hasOwnProperty('last_name')  || 
+    rawInput.hasOwnProperty('middle_name') ||
     rawInput.hasOwnProperty('birthday');
 
   const flatRaw = { ...raw };
@@ -219,20 +221,21 @@ async function processDocument(docId, rawInput) {
       const rawHash   = await bcrypt.hash(lrn, 10);
       const hashedLrn = rawHash.replace(/^\$2[ab]\$/, '$2y$');
       const [newUser] = await conn.execute(
-        `INSERT INTO users (first_name, last_name, birthday, password, role, created_at)
-         VALUES (?, ?, ?, ?, 'student', NOW())`,
-        [safe(firstName), safe(lastName), safe(bday), hashedLrn]
+        `INSERT INTO users (first_name, last_name, middle_name, birthday, password, role, created_at)
+         VALUES (?, ?, ?, ?, ?, 'student', NOW())`,
+        [safe(firstName), safe(lastName), safe(middleName), safe(bday), hashedLrn]
       );
       userId = newUser.insertId;
     } else if (hasIdentityFields) {
       await conn.execute(
         `UPDATE users SET
-           first_name = COALESCE(NULLIF(?, ''), first_name),
-           last_name  = COALESCE(NULLIF(?, ''), last_name),
-           birthday   = COALESCE(?, birthday),
-           updated_at = NOW()
+           first_name  = COALESCE(NULLIF(?, ''), first_name),
+           last_name   = COALESCE(NULLIF(?, ''), last_name),
+           middle_name = COALESCE(NULLIF(?, ''), middle_name),
+           birthday    = COALESCE(?, birthday),
+           updated_at  = NOW()
          WHERE id = ?`,
-        [safe(firstName), safe(lastName), safe(bday), userId]
+        [safe(firstName), safe(lastName), safe(middleName), safe(bday), userId]
       );
     }
 
