@@ -309,15 +309,62 @@ async function processDocument(docId, rawInput) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LISTENER
+// CONFIG RELOAD LOGIC
 // ─────────────────────────────────────────────────────────────────────────────
+const fs = require('fs');
+const path = require('path');
 
-db.collection('responses')
-  .where('isSynced', '==', false)
-  .onSnapshot(async (snap) => {
-    for (const change of snap.docChanges()) {
-      if (change.type === 'added' || change.type === 'modified') {
-        await processDocument(change.doc.id, change.doc.data()).catch(console.error);
-      }
+function reloadConfig() {
+  const envPath = path.resolve(__dirname, '../.env');
+  if (fs.existsSync(envPath)) {
+    const envConfig = require('dotenv').parse(fs.readFileSync(envPath));
+    for (const k in envConfig) {
+      process.env[k] = envConfig[k];
+    }
+    console.log('♻️  [.ENV] Configuration reloaded from .env file.');
+  }
+}
+
+// Watch .env for changes
+const envPath = path.resolve(__dirname, '../.env');
+if (fs.existsSync(envPath)) {
+  fs.watchFile(envPath, (curr, prev) => {
+    if (curr.mtime !== prev.mtime) {
+      reloadConfig();
     }
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LISTENER & AUTO-RECONNECT
+// ─────────────────────────────────────────────────────────────────────────────
+
+let unsubscribe = null;
+
+function startSync() {
+  if (unsubscribe) {
+    console.log('🔄 [SYNC] Restarting Firestore listener...');
+    unsubscribe();
+  }
+
+  unsubscribe = db.collection('responses')
+    .where('isSynced', '==', false)
+    .onSnapshot(async (snap) => {
+      for (const change of snap.docChanges()) {
+        if (change.type === 'added' || change.type === 'modified') {
+          try {
+            await processDocument(change.doc.id, change.doc.data());
+          } catch (err) {
+            console.error(`❌ [SYNC ERROR] Failed to process ${change.doc.id}:`, err.message);
+          }
+        }
+      }
+    }, (error) => {
+      console.error('🔥 [FIRESTORE ERROR] Snapshot listener failed:', error.message);
+      console.log('⏳ [SYNC] Attempting to reconnect in 5 seconds...');
+      setTimeout(startSync, 5000);
+    });
+}
+
+// Initial start
+startSync();
