@@ -255,8 +255,8 @@
             // UPDATED: Removed context.translate and context.scale so it saves exactly what the camera sees
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            // Convert to max quality 1.0 JPEG for OCR accuracy
-            const dataURL = canvas.toDataURL('image/jpeg', 1.0); 
+            // Convert to high quality 0.9 JPEG for faster upload without losing OCR accuracy
+            const dataURL = canvas.toDataURL('image/jpeg', 0.9); 
             imageDataInput.value = dataURL;
 
             // Send via fetch API to read Python response without reloading page
