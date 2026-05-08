@@ -143,11 +143,17 @@ class EnrollmentController extends Controller
                 'Enrollment Form' => 'enroll_form',
                 'PSA Birth Certificate' => 'psa'
             ];
-        } elseif ($status === 'transferee' || $status === 'balik_aral') {
+        } elseif ($status === 'transferee') {
             return [
                 'Report Card (SF9)' => 'sf9',
                 'PSA Birth Certificate' => 'psa',
                 'Affidavit of Undertaking' => 'affidavit',
+                'Enrollment Form' => 'enroll_form'
+            ];
+        } elseif ($status === 'balik_aral') {
+            return [
+                'Report Card (SF9)' => 'sf9',
+                'PSA Birth Certificate' => 'psa',
                 'Enrollment Form' => 'enroll_form'
             ];
         } else {
