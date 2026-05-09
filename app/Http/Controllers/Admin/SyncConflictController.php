@@ -106,6 +106,47 @@ class SyncConflictController extends Controller
                     $studentFields['is_manually_edited'] = 1;
                     $student->update($studentFields);
 
+                    // ── INSERT NEW pre_enrollments VERSION ────────────────────────────
+                    // sync.js exits early on conflict and never writes a pre_enrollments row.
+                    // We insert one here so extra fields (cluster, track, grade_level,
+                    // academic_status) are reflected in the dashboard and student profile.
+                    $excludedKeys = [
+                        'first_name', 'last_name', 'middle_name', 'extension_name',
+                        'birthday', 'lrn', 'password', 'role', 'updated_at', 'created_at',
+                        'isSynced', 'extra_fields', 'form_id', 'submitted_at', 'school_year',
+                        'sex', 'age', 'place_of_birth', 'mother_tongue',
+                        'curr_house_number', 'curr_street', 'curr_barangay', 'curr_city',
+                        'curr_province', 'curr_zip_code', 'curr_country', 'is_perm_same_as_curr',
+                        'perm_house_number', 'perm_street', 'perm_barangay', 'perm_city',
+                        'perm_province', 'perm_zip_code', 'perm_country',
+                        'mother_last_name', 'mother_first_name', 'mother_middle_name', 'mother_contact_number',
+                        'father_last_name', 'father_first_name', 'father_middle_name', 'father_contact_number',
+                        'guardian_last_name', 'guardian_first_name', 'guardian_middle_name', 'guardian_contact_number',
+                    ];
+
+                    // Extra fields may be at top level OR nested under 'extra_fields' key
+                    $incomingJson = $conflict->incoming_data_json;
+                    $nestedExtras = $incomingJson['extra_fields'] ?? [];
+                    $topLevelExtras = array_diff_key($incomingJson, array_flip($excludedKeys));
+
+                    // Merge both — nested extra_fields takes priority
+                    $extraFields = array_merge($topLevelExtras, $nestedExtras);
+                    unset($extraFields['extra_fields']); // remove the nested key itself if present
+
+                    if (!empty($extraFields) && $student) {
+                        $latestVersion = DB::table('pre_enrollments')
+                            ->where('student_id', $student->id)
+                            ->max('submission_version') ?? 0;
+
+                        DB::table('pre_enrollments')->insert([
+                            'student_id'         => $student->id,
+                            'submission_version' => $latestVersion + 1,
+                            'responses'          => json_encode($extraFields),
+                            'status'             => 'Synced',
+                            'created_at'         => now(),
+                        ]);
+                    }
+
                     $conflict->status            = 'resolved';
                     $conflict->resolution_action = 'accept_new';
                 }

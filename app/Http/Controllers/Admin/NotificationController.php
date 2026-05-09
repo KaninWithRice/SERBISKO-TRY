@@ -26,7 +26,7 @@ class NotificationController extends Controller
                 'title' => 'Sync Conflict Detected',
                 'description' => 'A data mismatch was found for ' . ($conflict->incoming_data_json['first_name'] ?? 'a student'),
                 'time' => Carbon::parse($conflict->created_at)->diffForHumans(),
-                'link' => route('admin.syncconflict'),
+                'link' => route('admin.action-center') . '?tab=conflict',
                 'is_read' => false, // We'll handle read status if needed, but for now showing active ones
             ]);
         }
@@ -45,7 +45,7 @@ class NotificationController extends Controller
                 'title' => 'Manual Verification Needed',
                 'description' => $scan->first_name . ' ' . $scan->last_name . ' submitted a ' . $scan->document_type,
                 'time' => Carbon::parse($scan->created_at)->diffForHumans(),
-                'link' => route('admin.verification'),
+                'link' => route('admin.action-center') . '?tab=verify',
                 'is_read' => false,
             ]);
         }
@@ -68,7 +68,7 @@ class NotificationController extends Controller
                     'title' => 'Paper Rejected (Physical Bin)',
                     'description' => $enrollment->first_name . '\'s ' . ($paper['document_type'] ?? 'document') . ' was rejected.',
                     'time' => Carbon::parse($paper['rejected_at'] ?? $enrollment->updated_at)->diffForHumans(),
-                    'link' => route('admin.verification'),
+                    'link' => route('admin.action-center') . '?tab=bin',
                     'is_read' => false,
                 ]);
             }

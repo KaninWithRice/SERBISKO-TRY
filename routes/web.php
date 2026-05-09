@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\FormBuilderController;
 use Illuminate\Support\Facades\DB;
 
 use App\Http\Controllers\Admin\NotificationController;
+use App\Http\Controllers\Admin\ActionCenterController;
 
 /*
 |--------------------------------------------------------------------------
@@ -68,15 +69,17 @@ Route::middleware([CheckAdmin::class])->group(function () {
         Route::post('/settings/refresh-headers', [SettingsController::class, 'refreshHeaders'])->name('settings.refresh');
         Route::get('/settings/mapping', [SettingsController::class, 'showMapping'])->name('settings.mapping');
         Route::post('/settings/mapping/update', [SettingsController::class, 'updateMapping'])->name('settings.mapping.save');
+        // Action Center (unified page)
+        Route::get('/action-center', [ActionCenterController::class, 'index'])->name('action-center');
         Route::get('/conflicts', [SyncConflictController::class, 'index'])->name('syncconflict');
         Route::post('/conflicts/{id}/resolve', [SyncConflictController::class, 'resolve'])->name('admin.conflicts.resolve');
-
+ 
         // Sections Management
         Route::get('/sections', [SectionController::class, 'index'])->name('sections.index');
         Route::post('/sections', [SectionController::class, 'store'])->name('sections.store');
         Route::delete('/sections/{id}', [SectionController::class, 'destroy'])->name('sections.destroy');
         Route::get('/api/sections', [SectionController::class, 'getSections'])->name('api.sections');
-
+ 
         // Form Builder
         Route::get('/forms',                [FormBuilderController::class, 'index'])->name('forms.index');
         Route::get('/forms/create',         [FormBuilderController::class, 'create'])->name('forms.create');
@@ -85,7 +88,7 @@ Route::middleware([CheckAdmin::class])->group(function () {
         Route::get('/forms/{form}/edit',    [FormBuilderController::class, 'edit'])->name('forms.edit');
         Route::put('/forms/{form}',         [FormBuilderController::class, 'update'])->name('forms.update');
         Route::delete('/forms/{form}',      [FormBuilderController::class, 'destroy'])->name('forms.destroy');
-
+ 
         // Notifications
         Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
         Route::post('/notifications/mark-read', [NotificationController::class, 'markAsRead'])->name('notifications.markRead');

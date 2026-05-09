@@ -111,7 +111,7 @@
                 </div>
 
                 <div class="p-3 bg-gray-50/50 border-t border-gray-50">
-                    <a href="{{ route('admin.verification') }}" class="block text-center text-[#00923F] text-[10px] font-bold uppercase tracking-widest hover:underline py-1">
+                    <a href="{{ route('admin.action-center') }}" class="block text-center text-[#00923F] text-[10px] font-bold uppercase tracking-widest hover:underline py-1">
                         View All Activities
                     </a>
                 </div>
