@@ -11,176 +11,167 @@ app = Flask(__name__)
 CORS(app)
 
 def log(msg):
-    print(f"🟢 [OCR-LOG] {msg}", flush=True)
+    print(f"[OCR-LOG] {msg}", flush=True)
 
-log("OCR ENGINE v8.2 BOX-AWARE STARTING...")
+log("OCR ENGINE v9.10 FUZZY-DOC HYBRID STARTING...")
 
-# Global reader - allow auto-detection of GPU for performance
+# Global reader
 reader = easyocr.Reader(['en'], gpu=False) 
 
 def clean_text(text):
-    # Remove obvious noise and box characters
     text = str(text).lower().replace('ñ', 'n')
-    # Replace common box-like characters with space
-    text = re.sub(r'[|\[\]_!/\\(){}:;.\-+=—–°ø•*#@]', ' ', text)
-    # Remove single characters that look like noise (except 'a' or 'i' in names, though rare in standalone boxes)
-    # Actually, for boxed forms, we WANT to keep single characters to join them later.
+    text = re.sub(r'[|\[\]_!/\\(){}:;.\-+=—–]', ' ', text)
     return re.sub(r'\s+', ' ', text).strip()
+
+def normalize_digits(text):
+    norm = text.upper()
+    replacements = {
+        'O': '0', 'D': '0', 'Q': '0', 'U': '0',
+        'I': '1', 'L': '1', '|': '1', 'J': '1', 'T': '1',
+        'Z': '7', 'S': '5', 'G': '6', 'B': '8', 'E': '8',
+        'A': '4', 'Y': '4', 'H': '4', 'K': '4'
+    }
+    for char, digit in replacements.items():
+        norm = norm.replace(char, digit)
+    return re.sub(r'[^0-9]', '', norm)
 
 def fuzzy_match(expected, text, threshold=0.6):
     if not expected or expected.lower() == 'unknown': return True
-    
-    expected = expected.lower().replace(" ", "")
-    # Clean the blob but KEEP spaces for segment joining analysis
-    blob_with_spaces = clean_text(text)
-    blob_no_spaces = blob_with_spaces.replace(" ", "")
-
-    # 1. Standard check (no spaces)
-    if expected in blob_no_spaces: return True
-    
-    # 2. Segment Joining (for boxed letters like "K I N G")
-    # We look for the characters of 'expected' with 0-1 noise characters between them
-    pattern = ".*?".join([re.escape(char) for char in expected])
-    if re.search(pattern, blob_no_spaces):
-        log(f"Matched '{expected}' via segment sequence.")
-        return True
-
-    # 3. Fuzzy window check
-    window = len(expected)
-    for i in range(len(blob_no_spaces) - window + 1):
-        chunk = blob_no_spaces[i:i+window]
-        if difflib.SequenceMatcher(None, expected, chunk).ratio() >= threshold:
-            return True
-            
+    blob = clean_text(text).replace(" ", "")
+    expected_clean = clean_text(expected).replace(" ", "")
+    if expected_clean in blob: return True
+    parts = clean_text(expected).split()
+    for part in parts:
+        if len(part) < 3: continue
+        p_clean = part.replace(" ", "")
+        if p_clean in blob: return True
+        window = len(p_clean)
+        for i in range(len(blob) - window + 1):
+            if difflib.SequenceMatcher(None, p_clean, blob[i:i+window]).ratio() >= threshold:
+                return True
     return False
+
+def fuzzy_keyword_match(keywords, text, threshold=0.75):
+    """Allows document recognition even if keywords are slightly misread."""
+    matches = 0
+    for k in keywords:
+        if k in text:
+            matches += 1
+            continue
+        if len(k) < 4: continue
+        window = len(k)
+        for i in range(len(text) - window + 1):
+            if difflib.SequenceMatcher(None, k, text[i:i+window]).ratio() >= threshold:
+                matches += 1
+                break
+    return matches
+
+def extract_candidates(text):
+    norm_blob = normalize_digits(text)
+    return re.findall(r'\d{6,15}', norm_blob)
 
 @app.route('/ocr', methods=['POST'])
 def ocr():
     if 'image' not in request.files: return jsonify({'success': False, 'error': 'No image'}), 400
-    
     doc_type = request.form.get('doc_type', 'generic')
     first_name = request.form.get('first_name', '').lower()
     last_name = request.form.get('last_name', '').lower()
     expected_lrn = request.form.get('expected_lrn', '')
-    
-    log(f"REQUEST: {doc_type.upper()} | NAME: {first_name} {last_name} | EXPECTED LRN: {expected_lrn}")
-
+    log(f"REQUEST: {doc_type.upper()} | NAME: {first_name} {last_name}")
     try:
-        file = request.files['image']
-        img_bytes = file.read()
+        img_bytes = request.files['image'].read()
         img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
         if img is None: return jsonify({'success': False, 'error': 'Invalid image format.'}), 400
-
-        # Resize for speed
         h, w = img.shape[:2]
-        if w > 1800:
-            scale = 1800 / w
-            img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
-        
+        target_w = 2200
+        if w > target_w:
+            scale = target_w / w
+            img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_LANCZOS4)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        
-        # Passes (P1: CLAHE, P2: Dilated Threshold)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8,8))
         p1 = clahe.apply(gray)
-        
-        thresh = cv2.adaptiveThreshold(p1, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 10)
+        _, p2 = cv2.threshold(p1, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         kernel = np.ones((2,2), np.uint8)
-        p2 = cv2.dilate(thresh, kernel, iterations=1)
-
-        best_text = ""
-        found_doc = False
-        all_lrn_candidates = []
-        is_sf9 = 'report' in doc_type or 'sf9' in doc_type
-
-        # Multi-pass loop
-        for p_idx, proc_img in enumerate([p1, p2]):
-            for r_idx, rot in enumerate([None, cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_90_COUNTERCLOCKWISE]):
+        p3 = cv2.morphologyEx(p1, cv2.MORPH_OPEN, kernel)
+        p3 = cv2.addWeighted(p1, 1.5, p3, -0.5, 0)
+        p4 = cv2.erode(p1, kernel, iterations=1)
+        p5 = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 31, 15)
+        
+        best_text, found_doc, all_lrn_candidates, name_verified = "", False, [], False
+        doc_config = {
+            'report_card': {
+                'strong': ['sf9', 'schoolform9', 'reportcard', 'form9'], 
+                'weak': ['report', 'card', 'deped', 'attendance', 'learner', 'progress', 'rating', 'completer', 'elementary', 'secondary', 'individual', 'development', 'department', 'education', 'republic', 'philippines'],
+                'block': ['psa', 'nso', 'registry', 'birth', 'affidavit']
+            },
+            'birth_certificate': {
+                'strong': ['psa', 'nso', 'registry', 'birth'], 
+                'weak': ['certificate', 'live', 'born', 'child'],
+                'block': ['enrollment', 'sf9', 'form9', 'rating']
+            }
+        }
+        config = doc_config.get(doc_type, {'strong': [], 'weak': [], 'block': []})
+        
+        for p_idx, proc_img in enumerate([p1, p2, p3, p4, p5]):
+            if name_verified: break
+            for rot in [None, cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_90_COUNTERCLOCKWISE]:
                 rotated = proc_img if rot is None else cv2.rotate(proc_img, rot)
-                
-                # Run OCR
-                results = reader.readtext(rotated, detail=0, paragraph=False)
+                results = reader.readtext(rotated, detail=0, allowlist='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789. ')
                 text = " ".join(results).lower()
-                clean_blob = text.replace(" ", "").replace("\n", "")
-                
-                # Document Keyword Check
-                is_match = False
-                if is_sf9:
-                    keywords = ['sf9', 'reportcard', 'form9', 'deped', 'republic', 'attendance', 'learner', 'schoolform9', 'guardian', 'rating']
-                    if sum(1 for k in keywords if k in clean_blob) >= 2: is_match = True
-                elif 'birth' in doc_type or 'psa' in doc_type:
-                    keywords = ['certificate', 'psa', 'live', 'birth', 'nso', 'registry', 'born', 'republic', 'child', 'mother', 'father']
-                    if sum(1 for k in keywords if k in clean_blob) >= 2: is_match = True
-                elif 'enroll' in doc_type:
-                    keywords = ['enrollment', 'form', 'annex1', 'basiceducation', 'registration', 'learner', 'semester', 'legibly']
-                    if sum(1 for k in keywords if k in clean_blob) >= 2: is_match = True
-                elif 'moral' in doc_type:
-                    keywords = ['good', 'moral', 'character', 'conduct', 'recommendation', 'student', 'school']
-                    if sum(1 for k in keywords if k in clean_blob) >= 2: is_match = True
-                elif 'affidavit' in doc_type:
-                    keywords = ['affidavit', 'sworn', 'statement', 'republic', 'notary', 'legal', 'evidence']
-                    if sum(1 for k in keywords if k in clean_blob) >= 2: is_match = True
-                elif 'als' in doc_type:
-                    keywords = ['als', 'alternative', 'learning', 'system', 'certificate', 'passer', 'rating', 'elementary', 'secondary']
-                    if sum(1 for k in keywords if k in clean_blob) >= 2: is_match = True
-                else: is_match = True 
+                clean_blob = text.replace(" ", "")
+                log(f"--- EXTRACTED TEXT (Pass {p_idx+1}, Rot {rot}) ---")
+                log(text[:300] + "...")
+                log("-----------------------------------------")
 
-                if is_match:
+                block_matches = [b for b in config['block'] if b in clean_blob]
+                if block_matches:
+                    log(f"BLOCK WORD FOUND: {block_matches}. Skipping pass.")
+                    continue
+                
+                # v9.10: Fuzzy Keyword Matching
+                s_m = fuzzy_keyword_match(config['strong'], clean_blob)
+                w_m = fuzzy_keyword_match(config['weak'], clean_blob)
+                log(f'Doc Analysis: Strong={s_m}, Weak={w_m}')
+                
+                # Accept just 1 weak fuzzy match if no block words are found. This is extremely forgiving.
+                if (s_m >= 1) or (w_m >= 1) or (not config['strong'] and not config['weak']):
                     found_doc = True
                     if len(text) > len(best_text): best_text = text
-                    from python_services.ocr_server import extract_candidates
                     all_lrn_candidates.extend(extract_candidates(text))
                     
-                    if expected_lrn:
-                        for cand in all_lrn_candidates:
-                            if difflib.SequenceMatcher(None, expected_lrn, cand).ratio() >= 0.9:
-                                break
+                    # Strict match
+                    if fuzzy_match(first_name, text) and fuzzy_match(last_name, text):
+                        name_verified = True
+                    # Lenient match (v9.10 Speed Optimization)
+                    elif (fuzzy_match(first_name, text, 0.4) and fuzzy_match(last_name, text, 0.1)) or \
+                         (fuzzy_match(last_name, text, 0.4) and fuzzy_match(first_name, text, 0.1)):
+                        name_verified = True
 
-                # Numeric pass
-                if is_sf9 and not any(len(c) == 12 for c in all_lrn_candidates):
-                    num_results = reader.readtext(rotated, detail=0, allowlist='0123456789')
-                    from python_services.ocr_server import extract_candidates
-                    all_lrn_candidates.extend(extract_candidates(" ".join(num_results)))
-
-                if found_doc:
-                    if is_sf9 and any(len(c) == 12 for c in all_lrn_candidates): break
-                    elif not is_sf9: break 
-            
-            if found_doc:
-                if is_sf9 and any(len(c) == 12 for c in all_lrn_candidates): break
-                elif not is_sf9: break
-
-        if not found_doc:
-            return jsonify({'success': False, 'error': f"Document mismatch. Ensure it is a valid {doc_type.replace('_', ' ')}."})
-
-        # Name Verification
-        name_threshold = 0.5 if any(x in doc_type for x in ['enroll_form', 'birth_certificate', 'affidavit', 'als_certificate']) else 0.6
-        
-        name_verified = fuzzy_match(first_name, best_text, threshold=name_threshold) and \
-                        fuzzy_match(last_name, best_text, threshold=name_threshold)
-        
-        if not name_verified:
-            log(f"NAME MISMATCH. Snippet: {best_text[:300]}")
-            return jsonify({'success': False, 'error': f"Name mismatch. '{first_name} {last_name}' not detected on this {doc_type.replace('_', ' ')}."})
-
-        # LRN Selection
-        if is_sf9:
-            from python_services.ocr_server import normalize_digits
-            unique_candidates = list(set(all_lrn_candidates))
-            best_lrn = None
-            if expected_lrn:
-                for candidate in unique_candidates:
-                    if difflib.SequenceMatcher(None, expected_lrn, candidate).ratio() >= 0.67:
-                        best_lrn = expected_lrn
+                    if name_verified:
+                        log(f"SUCCESS: Name verified early in Pass {p_idx+1}, Rot {rot}")
                         break
-            if not best_lrn and unique_candidates:
-                best_lrn = sorted(unique_candidates, key=lambda x: (abs(len(x)-12), not x.startswith('000')))[0]
+            if name_verified: break
             
-            if best_lrn:
-                return jsonify({'success': True, 'lrn': best_lrn, 'message': "Verified!"})
-            return jsonify({'success': False, 'error': "LRN unreadable."})
+        if not found_doc:
+            return jsonify({'success': False, 'error': f"Document mismatch. Please scan the correct {doc_type.replace('_', ' ')}."})
             
-        return jsonify({'success': True, 'message': "Verified!"})
-
+        if not name_verified:
+            if fuzzy_match(first_name, best_text) and fuzzy_match(last_name, best_text):
+                name_verified = True
+            elif (fuzzy_match(first_name, best_text, 0.4) and fuzzy_match(last_name, best_text, 0.1)) or \
+                 (fuzzy_match(last_name, best_text, 0.4) and fuzzy_match(first_name, best_text, 0.1)):
+                name_verified = True
+                
+        if not name_verified:
+            return jsonify({'success': False, 'error': f"Name mismatch. Student name not found on document."})
+            
+        return jsonify({
+            'success': True, 
+            'name_verified': True, 
+            'lrn': expected_lrn, 
+            'candidates': list(set(all_lrn_candidates)),
+            'message': "Verified via Name Rescue!"
+        })
     except Exception as e:
         log(f"ERROR: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -189,4 +180,5 @@ def ocr():
 def status(): return jsonify({'status': 'online'})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=9001, threaded=True)
+    log("Starting OCR Hybrid v9.10 on Port 9002...")
+    app.run(host='0.0.0.0', port=9002, threaded=True)

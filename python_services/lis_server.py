@@ -23,6 +23,8 @@ CREDS = ("depedsample@gmail.com", "deped123")
 def run_check(lrn, expected_grade, webhook, scan_id):
     print(f"[*] Verifying LRN: {lrn}. Looking for: {expected_grade} completer.")
     result = "failed_lis"
+    extracted_name = ""
+    text = ""
     driver = None
     
     try:
@@ -82,7 +84,7 @@ def run_check(lrn, expected_grade, webhook, scan_id):
                 continue
         
         if not inp:
-            print("❌ Could not find search box with standard selectors. Trying all visible inputs...")
+            print("[FAILED] Could not find search box with standard selectors. Trying all visible inputs...")
             all_inputs = driver.find_elements(By.TAG_NAME, "input")
             for i in all_inputs:
                 if i.is_displayed():
@@ -171,36 +173,51 @@ def run_check(lrn, expected_grade, webhook, scan_id):
             # --- DYNAMIC GRADE CHECK ---
             if expected_grade.lower() in text.lower():
                 result = "verified_lis"
-                print(f"✅ SUCCESS: {expected_grade} verified successfully in LIS!")
+                print(f"[SUCCESS] SUCCESS: {expected_grade} verified successfully in LIS!")
             else:
                 result = "failed_lis"
-                print(f"❌ FAILED: Grade mismatch. Expected {expected_grade}, but it was not found in the modal.")
+                print(f"[FAILED] FAILED: Grade mismatch. Expected {expected_grade}, but it was not found in the modal.")
+            
+            # Extract headers to send as lis_name for validation
+            try:
+                headers = driver.find_elements(By.XPATH, "//h4 | //h3")
+                for h in headers:
+                    if len(h.text) > 3:
+                        extracted_name = h.text
+                        break
+            except:
+                pass
                 
         except Exception as e:
             result = "failed_lis"
-            print(f"❌ LRN not found or Modal failed to open. Error: {e}")
+            print(f"[FAILED] LRN not found or Modal failed to open. Error: {e}")
             
         driver.quit()
     except Exception as e:
-        print(f"❌ Selenium Error: {e}")
+        print(f"[FAILED] Selenium Error: {e}")
         if driver:
             try:
                 driver.quit()
             except:
                 pass
 
-    # --- UPDATED: Actively print Laravel's HTTP Response ---
     print(f"[*] Sending webhook to Laravel at: {webhook}")
     try:
-        response = requests.post(webhook, json={'scan_id': scan_id, 'result': result}, verify=False)
+        payload = {
+            'scan_id': scan_id, 
+            'result': result,
+            'lis_name': extracted_name if 'extracted_name' in locals() else "",
+            'lis_text': text[:500] if 'text' in locals() else ""
+        }
+        response = requests.post(webhook, json=payload, verify=False)
         
         if response.status_code == 200:
-            print("✅ Webhook accepted! Laravel updated the database successfully.")
+            print("[SUCCESS] Webhook accepted! Laravel updated the database successfully.")
         else:
-            print(f"❌ Webhook REJECTED by Laravel! Status Code: {response.status_code}")
+            print(f"[FAILED] Webhook REJECTED by Laravel! Status Code: {response.status_code}")
             print(f"Laravel Response: {response.text[:300]}")
     except Exception as e:
-        print(f"❌ Webhook Network Error: {e}")
+        print(f"[FAILED] Webhook Network Error: {e}")
 
 @app.route('/verify', methods=['POST'])
 def verify():
@@ -219,4 +236,4 @@ def server_status():
 
 if __name__ == '__main__':
     print("Starting LIS Verifier on Port 5001...")
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=False)

@@ -167,7 +167,7 @@
             timerElement.textContent = seconds;
             if (seconds <= 0) {
                 clearInterval(countdown);
-                window.location.href = '/logout';
+                window.location.href = '{{ url('/logout') }}';
             }
         }, 1000);
 
@@ -200,7 +200,7 @@
             message.classList.add('hidden');
 
             try {
-                const response = await fetch('/student/send-receipt-email', {
+                const response = await fetch('{{ url('/student/send-receipt-email') }}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

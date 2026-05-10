@@ -25,9 +25,9 @@ class AuthController extends Controller
         if (Auth::check()) {
             $role = strtolower(Auth::user()->role);
             if (in_array($role, ['admin', 'super_admin', 'facilitator'])) {
-                return redirect('/dashboard');
+                return redirect(url('/dashboard'));
             }
-            return redirect('/student/grade-selection');
+            return redirect(url('/student/grade-selection'));
         }
 
         return view('login');
@@ -37,9 +37,9 @@ class AuthController extends Controller
     {
         // 1. Prepare DOB from dropdowns if they exist
         if ($request->filled(['dob_year', 'dob_month', 'dob_day'])) {
-            $dob = sprintf('%s-%02d-%02d', 
-                $request->dob_year, 
-                $request->dob_month, 
+            $dob = sprintf('%s-%02d-%02d',
+                $request->dob_year,
+                $request->dob_month,
                 $request->dob_day
             );
             $request->merge(['dob' => $dob]);
@@ -78,7 +78,7 @@ class AuthController extends Controller
         // 3. Identity Verification Fail
         if (!$user) {
             // IMPORTANT: Add withTrashed() here too!
-            $partialMatch = User::withTrashed() 
+            $partialMatch = User::withTrashed()
                 ->where('last_name', $request->last_name)
                 ->where('first_name', $request->given_name)
                 ->where('birthday', $request->dob)
@@ -113,21 +113,21 @@ class AuthController extends Controller
 
         // 6. Success - Authenticate and Session management
         Auth::login($user);
-        $role = strtolower($user->role); 
+        $role = strtolower($user->role);
 
         Session::put('user_id', $user->id);
-        Session::put('user_role', $role); 
+        Session::put('user_role', $role);
         Session::put('user_name', $user->first_name);
 
         // Check for First Login (Student only)
         if ($role === 'student' && is_null($user->password_changed_at)) {
-            return redirect('/first-login');
+            return redirect(url('/first-login'));
         }
 
         if (in_array($role, ['admin', 'super_admin', 'facilitator'])) {
-            return redirect('/dashboard'); 
+            return redirect(url('/dashboard'));
         }
-        
+
         // Check for existing enrollment to determine redirect
         $student = $user->student;
         $hasEnrollment = false;
@@ -137,15 +137,15 @@ class AuthController extends Controller
                 ->exists();
         }
 
-        return $hasEnrollment 
-            ? redirect('/student/checklist') 
-            : redirect('/student/grade-selection');
+        return $hasEnrollment
+            ? redirect(url('/student/checklist'))
+            : redirect(url('/student/grade-selection'));
     }
 
     public function showFirstLogin()
     {
         if (!Auth::check() || Auth::user()->role !== 'student' || !is_null(Auth::user()->password_changed_at)) {
-            return redirect('/');
+            return redirect(url('/'));
         }
         return view('auth.first-login');
     }
@@ -179,7 +179,7 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/login')->with('success', 'Password updated successfully. Please log in with your new password.');
+        return redirect(url('/login'))->with('success', 'Password updated successfully. Please log in with your new password.');
     }
 
     public function logout(Request $request)
@@ -199,7 +199,7 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/login');
+        return redirect(url('/'));
     }
 
     public function updatePassword(Request $request)
