@@ -198,17 +198,19 @@ class StudentController extends Controller
     }
 
     // 3. STUDENT PROFILE LOGIC
-    public function profilepage($id)
+    public function profilepage(Request $request, $id)
     {
         $activeSY = \App\Models\Student::activeYear();
+        $selectedYear = $request->get('school_year', $activeSY);
+        \Log::info("Profile page requested for ID: $id (Selected SY: $selectedYear, Active SY: $activeSY)");
+
         $latestPre = \App\Models\Student::latestPreEnrollmentIds();
 
         // 1. Fetch the student - Using lrn as the identifier ($id)
-        $student = DB::table('students')
+        $studentQuery = DB::table('students')
             ->join('users', 'students.user_id', '=', 'users.id')
-            ->where('students.school_year', $activeSY)
-            ->leftJoinSub($latestPre, 'lp', 'students.id', '=', 'lp.student_id')
-            ->leftJoin('pre_enrollments', 'lp.latest_id', '=', 'pre_enrollments.id')
+            ->where('students.school_year', $selectedYear)
+            ->leftJoinSub($latestPre, 'lp', 'students.id', '=', 'lp.student_id')            ->leftJoin('pre_enrollments', 'lp.latest_id', '=', 'pre_enrollments.id')
             ->leftJoin('kiosk_enrollments', 'students.id', '=', 'kiosk_enrollments.student_id') 
             ->leftJoin('sections', 'students.section_id', '=', 'sections.id')
             ->select([
@@ -225,10 +227,17 @@ class StudentController extends Controller
                 'kiosk_enrollments.academic_status as kiosk_status'
             ])
             ->where('students.lrn', $id)
-            ->whereNull('users.deleted_at')
-            ->first();
+            ->whereNull('users.deleted_at');
 
-        if (!$student) abort(404);
+        \Log::info("SQL: " . $studentQuery->toSql());
+        \Log::info("Bindings: " . json_encode($studentQuery->getBindings()));
+
+        $student = $studentQuery->first();
+
+        if (!$student) {
+            \Log::warning("Student NOT FOUND in DB for ID: $id and SY: $activeSY");
+            abort(404);
+        }
 
         // 2. JSON Parsing & Key Normalization
         $rawDetails = json_decode($student->responses, true) ?: [];
@@ -293,7 +302,7 @@ class StudentController extends Controller
         return view('admin.studentpage.profilepage', compact(
             'student', 'details', 'dynamicDetails', 
             'finalGrade', 'finalTrack', 'finalCluster', 'finalStatus',
-            'verifiedScans', 'academicYears', 'activeSY', 'isAllVerified'
+            'verifiedScans', 'academicYears', 'activeSY', 'selectedYear', 'isAllVerified'
         ));
     }
 

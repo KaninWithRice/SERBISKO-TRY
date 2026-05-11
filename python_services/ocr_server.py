@@ -13,7 +13,7 @@ CORS(app)
 def log(msg):
     print(f"[OCR-LOG] {msg}", flush=True)
 
-log("OCR ENGINE v9.10 FUZZY-DOC HYBRID STARTING...")
+log("OCR ENGINE v9.16 FUZZY-DOC HYBRID STARTING...")
 
 # Global reader
 reader = easyocr.Reader(['en'], gpu=False) 
@@ -52,19 +52,23 @@ def fuzzy_match(expected, text, threshold=0.6):
     return False
 
 def fuzzy_keyword_match(keywords, text, threshold=0.75):
-    """Allows document recognition even if keywords are slightly misread."""
+    """Allows document recognition even if keywords are slightly misread. Returns (count, matched_list)."""
     matches = 0
+    matched_list = []
     for k in keywords:
-        if k in text:
+        k_clean = k.replace(" ", "").lower()
+        if k_clean in text:
             matches += 1
+            matched_list.append(k)
             continue
-        if len(k) < 4: continue
-        window = len(k)
+        if len(k_clean) < 4: continue
+        window = len(k_clean)
         for i in range(len(text) - window + 1):
-            if difflib.SequenceMatcher(None, k, text[i:i+window]).ratio() >= threshold:
+            if difflib.SequenceMatcher(None, k_clean, text[i:i+window]).ratio() >= threshold:
                 matches += 1
+                matched_list.append(k)
                 break
-    return matches
+    return matches, matched_list
 
 def extract_candidates(text):
     norm_blob = normalize_digits(text)
@@ -98,16 +102,42 @@ def ocr():
         p5 = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 31, 15)
         
         best_text, found_doc, all_lrn_candidates, name_verified = "", False, [], False
+        # v9.16: Calibrated Document Recognition Configuration
         doc_config = {
             'report_card': {
-                'strong': ['sf9', 'schoolform9', 'reportcard', 'form9'], 
-                'weak': ['report', 'card', 'deped', 'attendance', 'learner', 'progress', 'rating', 'completer', 'elementary', 'secondary', 'individual', 'development', 'department', 'education', 'republic', 'philippines'],
-                'block': ['psa', 'nso', 'registry', 'birth', 'affidavit']
+                'strong': ['sf9', 'schoolform9', 'reportcard', 'form9', 'learner progress', 'progress report', 'periodic rating', 'learning area', 'core values', 'final rating', 'remarks'], 
+                'weak': ['quarter', 'subject', 'narrative report', 'attendance', 'teacher', 'principal', 'adviser'],
+                'block': ['psa', 'nso', 'registry', 'birth', 'affidavit', 'moral', 'als', 'alternative', 'completer certificate', 'marriage', 'death', 'enrollment', 'registration', 'basic education', 'be lfd', 'learner information']
             },
             'birth_certificate': {
-                'strong': ['psa', 'nso', 'registry', 'birth'], 
-                'weak': ['certificate', 'live', 'born', 'child'],
-                'block': ['enrollment', 'sf9', 'form9', 'rating']
+                'strong': ['psa', 'nso', 'registry', 'birth', 'live birth'], 
+                'weak': ['certificate', 'live', 'born', 'child', 'registry number', 'republic', 'philippines', 'statistics', 'authority', 'census', 'civil', 'register'],
+                'block': ['enrollment', 'sf9', 'form9', 'school form', 'report card', 'rating', 'attendance', 'learner progress', 'moral']
+            },
+            'enroll_form': {
+                'strong': ['enrollment', 'basic education', 'learner information', 'be lfd'],
+                'weak': ['registration', 'form', 'student', 'school', 'year', 'parent', 'signature', 'date', 'semester', 'grade', 'guardian', 'contact number', 'sex', 'age', 'birthday'],
+                'block': ['psa', 'nso', 'registry', 'birth', 'live birth', 'born', 'certificate', 'statistics', 'civil', 'census', 'sf9', 'form9', 'report card', 'rating', 'periodic rating', 'core values', 'learning area']
+            },
+            'als_certificate': {
+                'strong': ['als', 'alternative learning', 'equivalency', 'elementary completer', 'secondary completer'],
+                'weak': ['certificate', 'completion', 'passer', 'rating', 'deped', 'department', 'education'],
+                'block': ['psa', 'nso', 'registry', 'birth', 'marriage', 'death']
+            },
+            'good_moral': {
+                'strong': ['good moral', 'character', 'conduct'],
+                'weak': ['certificate', 'recommendation', 'student', 'school', 'principal', 'office', 'clearance'],
+                'block': ['psa', 'nso', 'registry', 'birth', 'sf9', 'form9', 'report card']
+            },
+            'affidavit': {
+                'strong': ['affidavit', 'sworn', 'statement', 'notary'],
+                'weak': ['republic', 'philippines', 'legal', 'witness', 'subscribe', 'oath'],
+                'block': ['sf9', 'form9', 'report card', 'psa', 'nso']
+            },
+            'form_137': {
+                'strong': ['sf10', 'school form 10', 'form 137', 'permanent record'],
+                'weak': ['transcript', 'grades', 'secondary', 'student', 'record', 'school'],
+                'block': ['psa', 'nso', 'registry', 'birth']
             }
         }
         config = doc_config.get(doc_type, {'strong': [], 'weak': [], 'block': []})
@@ -123,18 +153,28 @@ def ocr():
                 log(text[:300] + "...")
                 log("-----------------------------------------")
 
-                block_matches = [b for b in config['block'] if b in clean_blob]
-                if block_matches:
-                    log(f"BLOCK WORD FOUND: {block_matches}. Skipping pass.")
-                    continue
+                # v9.15: FUZZY BLOCK CHECK (More robust than literal)
+                b_m, b_list = fuzzy_keyword_match(config['block'], clean_blob, threshold=0.85)
+                if b_m >= 1:
+                    log(f"BLOCK WORD FOUND: {b_list}. Document Mismatch!")
+                    return jsonify({'success': False, 'error': f"Document mismatch. This looks like a {b_list[0].upper()} but we need a {doc_type.replace('_', ' ').upper()}."})
                 
-                # v9.10: Fuzzy Keyword Matching
-                s_m = fuzzy_keyword_match(config['strong'], clean_blob)
-                w_m = fuzzy_keyword_match(config['weak'], clean_blob)
-                log(f'Doc Analysis: Strong={s_m}, Weak={w_m}')
+                # 2. Fuzzy Detect other document types to prevent cross-acceptance
+                for other_type, other_cfg in doc_config.items():
+                    if other_type != doc_type:
+                        o_s_m, o_s_list = fuzzy_keyword_match(other_cfg['strong'], clean_blob, threshold=0.85)
+                        if o_s_m >= 1:
+                            if not any(k in config['strong'] for k in o_s_list):
+                                log(f"DETECTED OTHER DOC TYPE: {other_type} via {o_s_list}. Rejecting!")
+                                return jsonify({'success': False, 'error': f"Document mismatch. This looks like a {other_type.replace('_', ' ').upper()} but we need a {doc_type.replace('_', ' ').upper()}."})
+
+                # v9.13: Fuzzy Keyword Matching with Detailed Logging
+                s_m, s_list = fuzzy_keyword_match(config['strong'], clean_blob)
+                w_m, w_list = fuzzy_keyword_match(config['weak'], clean_blob)
+                log(f'Doc Analysis: Strong={s_m} {s_list}, Weak={w_m} {w_list}')
                 
-                # Accept just 1 weak fuzzy match if no block words are found. This is extremely forgiving.
-                if (s_m >= 1) or (w_m >= 1) or (not config['strong'] and not config['weak']):
+                # v9.16: Stricter acceptance (Need 1 Strong OR at least 2 Weak matches)
+                if (s_m >= 1) or (w_m >= 2) or (not config['strong'] and not config['weak']):
                     found_doc = True
                     if len(text) > len(best_text): best_text = text
                     all_lrn_candidates.extend(extract_candidates(text))
@@ -180,5 +220,5 @@ def ocr():
 def status(): return jsonify({'status': 'online'})
 
 if __name__ == '__main__':
-    log("Starting OCR Hybrid v9.10 on Port 9002...")
+    log("Starting OCR Hybrid v9.16 on Port 9002...")
     app.run(host='0.0.0.0', port=9002, threaded=True)

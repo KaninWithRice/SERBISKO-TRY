@@ -46,36 +46,11 @@ class CheckAdmin
             }
 
             // Role-based Restrictions
-            if ($userRole === 'facilitator') {
-                // Facilitator can only access dashboard, students, sections, and notifications
-                $allowedPaths = [
-                    'dashboard',
-                    'admin/dashboard',
-                    'admin/students*',
-                    'admin/sections*',
-                    'admin/notifications*',
-                    'admin/accountsettings', 
-                    'admin/settings/security', 
-                    'admin/account/update-password',
-                    'check-user-status/*',
-                    'admin/api/sections*'
-                ];
-
-                $isAllowed = false;
-                foreach ($allowedPaths as $path) {
-                    if ($request->is($path)) {
-                        $isAllowed = true;
-                        break;
-                    }
-                }
-
-                if (!$isAllowed) {
-                    return redirect('/dashboard')->withErrors(['message' => 'Facilitators only have access to Dashboard, Students, and Sections.']);
-                }
-            } elseif ($userRole === 'admin') {
-                // Admin can access everything except Access Management
+            if (in_array($userRole, ['admin', 'facilitator'])) {
+                // Admins and Facilitators can access everything except Access Management
                 if ($request->is('admin/accessmanagement*') || $request->is('admin/users/*')) {
-                    return redirect('/dashboard')->withErrors(['message' => 'Admins do not have access to Access Management.']);
+                    $roleLabel = ($userRole === 'facilitator') ? 'Facilitators' : 'Admins';
+                    return redirect('/dashboard')->withErrors(['message' => "$roleLabel do not have access to Access Management."]);
                 }
             }
             // super_admin has no restrictions

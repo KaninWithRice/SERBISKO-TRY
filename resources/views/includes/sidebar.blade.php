@@ -66,7 +66,7 @@
                     </li>
                 </ul>
 
-                @if(in_array($userRole, ['super_admin', 'admin']))
+                @if(in_array($userRole, ['super_admin', 'admin', 'facilitator']))
                 {{--<li>
                     <a href="{{ route('admin.verification') }}" class="flex items-center gap-10 px-4 py-3 text-[#003918] font-semibold rounded-xl hover:bg-[#00923F]/5 transition-colors group {{ isActive('admin.verification') }}">
                         <div class="w-6 flex justify-center shrink-0">

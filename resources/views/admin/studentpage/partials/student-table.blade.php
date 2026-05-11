@@ -86,7 +86,7 @@
                         </span>
                     </td>
                     <td class="py-3 px-4 text-center">
-                        <a href="{{ route('admin.studentpage.profilepage', ['id' => $student->id]) }}"
+                        <a href="{{ route('admin.studentpage.profilepage', ['id' => $student->id, 'school_year' => request('school_year')]) }}"
                            class="text-[10px] font-bold uppercase tracking-wider text-[#1a8a44] hover:text-[#003918] hover:underline transition-colors">
                             Enroll
                         </a>

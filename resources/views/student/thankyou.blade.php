@@ -136,7 +136,7 @@
             <div class="space-y-4">
                 <div>
                     <label class="block text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-1">Email Address</label>
-                    <input type="email" id="emailInput" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#00923F] focus:ring-2 focus:ring-[#00923F]/20 outline-none transition-all" placeholder="your@email.com">
+                    <input type="email" id="emailInput" name="email" autocomplete="off" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#00923F] focus:ring-2 focus:ring-[#00923F]/20 outline-none transition-all" placeholder="your@email.com">
                 </div>
                 
                 <button id="sendEmailBtn" onclick="sendEmail()" class="w-full py-4 bg-[#00923F] hover:bg-[#007a35] text-white rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2">
@@ -230,5 +230,6 @@
             }
         }
     </script>
+    @include('includes.keyboard')
 </body>
 </html>

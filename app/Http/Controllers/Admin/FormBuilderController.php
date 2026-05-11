@@ -169,14 +169,7 @@ class FormBuilderController extends Controller
 
     public function index()
     {
-        $query = CustomForm::latest();
-
-        // If not super_admin, only show their own forms
-        if (strtolower(auth()->user()->role) !== 'super_admin') {
-            $query->where('created_by', auth()->id());
-        }
-
-        $forms = $query->paginate(20);
+        $forms = CustomForm::latest()->paginate(20);
 
         return view('admin.forms.index', compact('forms'));
     }
@@ -218,11 +211,6 @@ class FormBuilderController extends Controller
 
     public function show(CustomForm $form)
     {
-        // Authorization check
-        if (strtolower(auth()->user()->role) !== 'super_admin' && $form->created_by !== auth()->id()) {
-            abort(403, 'Unauthorized access to this form.');
-        }
-
         $studentViewUrl = env('STUDENT_VIEW_BASE_URL') . '?id=' . $form->share_token;
 
         $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='
@@ -233,21 +221,11 @@ class FormBuilderController extends Controller
 
     public function edit(CustomForm $form)
     {
-        // Authorization check
-        if (strtolower(auth()->user()->role) !== 'super_admin' && $form->created_by !== auth()->id()) {
-            abort(403, 'Unauthorized access to this form.');
-        }
-
         return view('admin.forms.edit', compact('form'));
     }
 
     public function update(Request $request, CustomForm $form)
     {
-        // Authorization check
-        if (strtolower(auth()->user()->role) !== 'super_admin' && $form->created_by !== auth()->id()) {
-            abort(403, 'Unauthorized access to this form.');
-        }
-
         $data = $request->validate(array_merge(
             [
                 'title'       => 'required|string|max:255',
@@ -276,11 +254,6 @@ class FormBuilderController extends Controller
 
     public function destroy(CustomForm $form)
     {
-        // Authorization check
-        if (strtolower(auth()->user()->role) !== 'super_admin' && $form->created_by !== auth()->id()) {
-            abort(403, 'Unauthorized access to this form.');
-        }
-
         $form->delete();
         return redirect()
             ->route('admin.forms.index')

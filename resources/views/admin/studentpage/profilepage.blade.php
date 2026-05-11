@@ -4,7 +4,7 @@
     <div class="flex justify-center items-end w-full pb-2 font-['Inter'] tracking-normal">
         <nav class="flex" aria-label="Breadcrumb">
             <ol class="inline-flex items-baseline space-x-2">
-                <li><a href="{{ route('admin.students') }}" class="text-[16px] font-medium text-gray-500 hover:text-[#00923F] transition-colors">Students</a></li>
+                <li><a href="{{ route('admin.students', ['school_year' => $selectedYear]) }}" class="text-[16px] font-medium text-gray-500 hover:text-[#00923F] transition-colors">Students</a></li>
                 <li class="flex text-[16px] font-bold text-[#00923F]">
                     <span class="mx-2 text-gray-400 select-none">></span>
                     <span>{{ $student->first_name }} {{ $student->last_name }} {{ $student->extension_name ? $student->extension_name : '' }}'s Enroll</span>
@@ -21,7 +21,7 @@
     isAutomating: false,
     automationStatus: '',
     automationColor: 'text-[#00923F]',
-    academic_year: '{{ $activeSY }}',
+    academic_year: '{{ $selectedYear }}',
     grade_level: '{{ $student->grade_level ?? $finalGrade }}',
     section_id: '{{ $student->section_id ?? "" }}',
     sections: [],
