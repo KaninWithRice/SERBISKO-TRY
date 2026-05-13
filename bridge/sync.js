@@ -93,41 +93,59 @@ async function processDocument(docId, rawInput) {
   if (terminalStates.includes(rawInput.isSynced)) return 'skipped';
 
   const raw = sanitizePayload(rawInput);
-
-  const lrn        = String(raw.lrn || '').trim();
-  const schoolYear = String(raw.school_year || '2026-2027');
-  const bday       = isValidDate(raw.birthday) ? raw.birthday : null;
-  const firstName  = toTitleCase(raw.first_name);
-  const lastName   = toTitleCase(raw.last_name);
-  const middleName = toTitleCase(raw.middle_name);
+  const lrn = String(raw.lrn || '').trim();
 
   if (!lrn) {
     console.warn(`⚠️  [SKIP] Document ${docId} has no LRN — skipping.`);
     return 'skipped';
   }
 
-  const hasIdentityFields = 
-    rawInput.hasOwnProperty('first_name') || 
-    rawInput.hasOwnProperty('last_name')  || 
-    rawInput.hasOwnProperty('middle_name') ||
-    rawInput.hasOwnProperty('birthday');
-
-  const flatRaw = { ...raw };
-  if (flatRaw.extra_fields && typeof flatRaw.extra_fields === 'object') {
-    Object.assign(flatRaw, flatRaw.extra_fields);
-    delete flatRaw.extra_fields;
-  }
-  const extraFieldsOnly = {};
-  for (const [key, val] of Object.entries(flatRaw)) {
-    if (!EXCLUDED_FROM_EXTRA.has(key)) {
-      extraFieldsOnly[key] = val;
-    }
-  }
-
   const conn = await pool.getConnection();
 
   try {
     await conn.beginTransaction();
+
+    // ── SCHOOL YEAR RESOLUTION ──
+    // Fetch the school_year from the form definition itself.
+    // This ensures submissions are tagged correctly even if multiple forms exist.
+    let schoolYear = raw.school_year;
+    if (raw.form_id) {
+      const [[formDef]] = await conn.execute(
+        `SELECT school_year FROM custom_forms WHERE id = ? LIMIT 1`,
+        [raw.form_id]
+      );
+      if (formDef) {
+        schoolYear = formDef.school_year;
+      }
+    }
+
+    // Ultimate fallback if both form lookup and raw payload lack a year
+    if (!schoolYear) {
+      schoolYear = '2026-2027'; 
+    }
+
+    const bday       = isValidDate(raw.birthday) ? raw.birthday : null;
+    const firstName  = toTitleCase(raw.first_name);
+    const lastName   = toTitleCase(raw.last_name);
+    const middleName = toTitleCase(raw.middle_name);
+
+    const hasIdentityFields = 
+      rawInput.hasOwnProperty('first_name') || 
+      rawInput.hasOwnProperty('last_name')  || 
+      rawInput.hasOwnProperty('middle_name') ||
+      rawInput.hasOwnProperty('birthday');
+
+    const flatRaw = { ...raw };
+    if (flatRaw.extra_fields && typeof flatRaw.extra_fields === 'object') {
+      Object.assign(flatRaw, flatRaw.extra_fields);
+      delete flatRaw.extra_fields;
+    }
+    const extraFieldsOnly = {};
+    for (const [key, val] of Object.entries(flatRaw)) {
+      if (!EXCLUDED_FROM_EXTRA.has(key)) {
+        extraFieldsOnly[key] = val;
+      }
+    }
 
     const [[existingUser]] = await conn.execute(
       `SELECT u.id, u.first_name, u.last_name, u.birthday,

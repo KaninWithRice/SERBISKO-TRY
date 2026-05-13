@@ -78,12 +78,10 @@
             </div>
 
             <div class="flex flex-col md:flex-row justify-center gap-4 mt-8">
-                @if(!$enrollment->cluster)
                 <a href="{{ url('/student/cluster-selection') }}" 
                    class="px-10 py-3 rounded-full border-2 border-blue-900 text-blue-900 font-bold hover:bg-blue-50 transition text-center">
                     BACK
                 </a>
-                @endif
 
                 <button type="button" onclick="validateChecklist()" 
                         class="px-10 py-3 rounded-full bg-blue-900 text-white font-bold hover:bg-blue-800 shadow-lg hover:shadow-xl transition transform hover:-translate-y-0.5">

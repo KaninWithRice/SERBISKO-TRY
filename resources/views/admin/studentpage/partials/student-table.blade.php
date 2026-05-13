@@ -1,9 +1,9 @@
 <div id="student-table-container" class="border-b border-gray-400">
-    <table class="w-full bg-white table-fixed"> 
+    <table class="w-full bg-white" style="table-layout: auto;">
         <thead class="bg-white">
             <tr class="border-b border-gray-400">
-                <th class="py-3 px-4 text-left text-[10px] font-bold uppercase tracking-wider text-[#003918] w-[11%]">LRN</th>
-                <th class="py-3 px-4 text-left text-[10px] font-bold uppercase tracking-wider text-[#003918] w-[25%] relative">
+                <th class="py-3 px-4 text-left text-[10px] font-bold uppercase tracking-wider text-[#003918]" style="width: 120px;">LRN</th>
+                <th class="py-3 px-4 text-left text-[10px] font-bold uppercase tracking-wider text-[#003918]" style="min-width: 200px;">
                     <div class="flex items-center gap-1">
                         Full Name
                         <button onclick="toggleSortMenu()" class="hover:bg-gray-100 p-0.5 rounded transition-colors focus:outline-none">
@@ -19,13 +19,13 @@
                         </div>
                     </div>
                 </th>
-                <th class="py-3 px-4 text-center text-[10px] font-bold uppercase tracking-wider text-[#003918] w-[10%]">Receipt #</th>
-                <th class="py-3 px-4 text-center text-[10px] font-bold uppercase tracking-wider text-[#003918] w-[10%]">Learner<br>Classification</th>
-                <th class="py-3 px-4 text-center text-[10px] font-bold uppercase tracking-wider text-[#003918] w-[7%]">Grade</th>
-                <th class="py-3 px-4 text-center text-[10px] font-bold uppercase tracking-wider text-[#003918] w-[8%]">Track &<br>Cluster</th>
-                <th class="py-3 px-4 text-center text-[10px] font-bold uppercase tracking-wider text-[#003918] w-[10%]">Status</th>
-                <th class="py-3 px-4 text-center text-[10px] font-bold uppercase tracking-wider text-[#003918] w-[10%]">Requirement</th>
-                <th class="py-3 px-4 text-center text-[10px] font-bold uppercase tracking-wider text-[#003918] w-[7%]">Action</th>
+                <th class="py-3 px-3 text-center text-[10px] font-bold uppercase tracking-wider text-[#003918]" style="width: 160px;">Receipt #</th>
+                <th class="py-3 px-3 text-center text-[10px] font-bold uppercase tracking-wider text-[#003918]" style="width: 110px;">Learner<br>Classification</th>
+                <th class="py-3 px-3 text-center text-[10px] font-bold uppercase tracking-wider text-[#003918]" style="width: 80px;">Grade</th>
+                <th class="py-3 px-3 text-center text-[10px] font-bold uppercase tracking-wider text-[#003918]" style="width: 90px;">Track &<br>Cluster</th>
+                <th class="py-3 px-3 text-center text-[10px] font-bold uppercase tracking-wider text-[#003918]" style="width: 110px;">Status</th>
+                <th class="py-3 px-3 text-center text-[10px] font-bold uppercase tracking-wider text-[#003918]" style="width: 90px;">Requirement</th>
+                <th class="py-3 px-3 text-center text-[10px] font-bold uppercase tracking-wider text-[#003918]" style="width: 70px;">Action</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
@@ -52,40 +52,49 @@
                     elseif (str_contains($clusterVal, 'EPAS'))  $clusterBadge = ['bg' => '#EDE9FE', 'text' => '#7c3aed', 'label' => 'EPAS'];
                 @endphp
                 <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="py-3 px-4 text-[11px] text-[#003918] font-medium font-mono">{{ $student->lrn }}</td>
-                    <td class="py-3 px-4 text-[11px] text-[#003918] font-bold truncate">
-                        <span class="uppercase">{{ $student->last_name }},</span>
-                        <span class="text-[#003918]/70 font-medium uppercase"> {{ $coloredPart }}</span>
+                    <td class="py-3 px-4 text-[11px] text-[#003918] font-medium font-mono whitespace-nowrap">{{ $student->lrn }}</td>
+                    <td class="py-3 px-4 text-[11px] text-[#003918] font-bold">
+                        <div class="flex flex-col">
+                            <span class="uppercase leading-tight">{{ $student->last_name }}, <span class="text-[#003918]/70 font-medium uppercase">{{ $coloredPart }}</span></span>
+                        </div>
                     </td>
-                    <td class="py-3 px-4 text-[11px] text-center text-[#005288] font-bold tracking-tight truncate">
+                    <td class="py-3 px-3 text-[11px] text-center text-[#005288] font-bold font-mono tracking-tight whitespace-nowrap">
                         {{ $student->receipt_number ?? '—' }}
                     </td>
-                    <td class="py-3 px-4 text-center text-[11px] text-[#003918]">{{ $student->display_status }}</td>
-                    <td class="py-3 px-4 text-center text-[11px] text-[#003918]">{{ $student->display_grade }}</td>
-                    <td class="py-3 px-4 text-center">
+                    <td class="py-3 px-3 text-center text-[11px] text-[#003918]">{{ $student->display_status }}</td>
+                    <td class="py-3 px-3 text-center text-[11px] text-[#003918] whitespace-nowrap">{{ $student->display_grade }}</td>
+                    <td class="py-3 px-3 text-center">
                         @if(!empty($student->display_track) && $student->display_track !== '—')
-                            <div class="text-[10px] text-[#003918] font-medium mb-1">{{ $student->display_track }}</div>
+                            <div class="text-[10px] text-[#003918] font-medium mb-1 leading-tight">{{ $student->display_track }}</div>
                         @endif
                         @if(!empty($student->display_cluster) && $student->display_cluster !== '—')
                             <span style="background: {{ $clusterBadge['bg'] }}; color: {{ $clusterBadge['text'] }};"
-                                class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
                                 {{ $clusterBadge['label'] }}
                             </span>
                         @else
                             <span class="text-gray-400 text-[11px]">—</span>
                         @endif
                     </td>
-                    <td class="py-3 px-4 text-center">
-                        <span class="text-[10px] {{ $student->status_style }} px-2.5 py-1 rounded-full border font-bold">
+                    <td class="py-3 px-3 text-center">
+                        <span class="text-[10px] {{ $student->status_style }} px-2.5 py-1 rounded-full border font-bold whitespace-nowrap">
                             {{ $student->enrollment_category }}
                         </span>
                     </td>
-                    <td class="py-3 px-4 text-center">
-                        <span class="text-[11px] {{ $student->requirement_style }}">
-                            {{ $student->requirement_display }}
+                    <td class="py-3 px-3 text-center">
+                        @php
+                            $reqMap = [
+                                'Registered'         => ['label' => 'Pending',    'class' => 'text-gray-500'],
+                                'Partial Compliance' => ['label' => 'Incomplete',  'class' => 'text-amber-600'],
+                                'For Enrollment'     => ['label' => 'Complete',    'class' => 'text-green-600 font-bold'],
+                            ];
+                            $req = $reqMap[$student->enrollment_category] ?? ['label' => $student->requirement_display, 'class' => $student->requirement_style];
+                        @endphp
+                        <span class="text-[11px] {{ $req['class'] }} whitespace-nowrap">
+                            {{ $req['label'] }}
                         </span>
                     </td>
-                    <td class="py-3 px-4 text-center">
+                    <td class="py-3 px-3 text-center">
                         <a href="{{ route('admin.studentpage.profilepage', ['id' => $student->id, 'school_year' => request('school_year')]) }}"
                            class="text-[10px] font-bold uppercase tracking-wider text-[#1a8a44] hover:text-[#003918] hover:underline transition-colors">
                             Enroll
@@ -137,13 +146,11 @@
         @php
             $current = $students->currentPage();
             $last    = $students->lastPage();
-
-            $window  = 2; // pages on each side of current
+            $window  = 2;
             $start   = max(1, $current - $window);
             $end     = min($last, $current + $window);
         @endphp
 
-        {{-- First page + ellipsis --}}
         @if($start > 1)
             <a href="javascript:void(0)" onclick="paginateTo(1)"
                class="w-8 h-8 flex items-center justify-center rounded-full text-[11px] font-semibold text-gray-500 hover:bg-gray-100 hover:text-[#003918] transition-colors">1</a>
@@ -152,7 +159,6 @@
             @endif
         @endif
 
-        {{-- Window pages --}}
         @for($page = $start; $page <= $end; $page++)
             @if($page === $current)
                 <span class="w-8 h-8 flex items-center justify-center rounded-full text-[11px] font-bold text-white bg-[#003918]">
@@ -166,7 +172,6 @@
             @endif
         @endfor
 
-        {{-- Ellipsis + last page --}}
         @if($end < $last)
             @if($end < $last - 1)
                 <span class="w-8 h-8 flex items-center justify-center text-[11px] text-gray-400">…</span>
@@ -191,7 +196,6 @@
     </div>
 </div>
 @else
-    {{-- Still show count even with a single page --}}
     @if($students->count())
     <div class="py-3 px-1 text-right">
         <p class="text-[11px] text-gray-400 font-medium">

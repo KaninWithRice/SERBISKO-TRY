@@ -12,7 +12,8 @@ class DashboardController extends Controller
 {
     public function index(Request $request) 
     {
-        $activeSY = \App\Models\Student::activeYear();
+        // Use requested school year or fallback to active global year
+        $activeSY = $request->has('school_year') ? $request->get('school_year') : \App\Models\Student::activeYear();
         $grade = $request->grade_level;
 
         // Reusable filter

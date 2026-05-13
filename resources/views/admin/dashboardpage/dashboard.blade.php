@@ -31,7 +31,9 @@
             this.loading = false;
         });
     }
-}" @refresh-dashboard.window="fetchDashboard(currentGrade, currentYear)">
+}" 
+@refresh-dashboard.window="fetchDashboard(currentGrade, currentYear)"
+@year-changed.window="fetchDashboard(undefined, $event.detail.year)">
 
     <div class="sticky top-0 z-10 bg-white py-2 flex justify-between items-center mb-4"> 
         <div class="inline-flex rounded-xl shadow-md border border-gray-100 bg-[#F7FBF9]">
@@ -45,7 +47,7 @@
             @endforeach
         </div>
 
-        <x-school-year-selector onchange="Alpine.find($el.closest('[x-data]')).fetchDashboard(undefined, year)" />
+        <x-school-year-selector onchange="$dispatch('year-changed', { year: year })" />
     </div>
 
     <div id="main-dashboard-content" class="relative min-h-[400px]">

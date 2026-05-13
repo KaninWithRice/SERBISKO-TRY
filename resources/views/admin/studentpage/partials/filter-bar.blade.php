@@ -63,8 +63,8 @@
                 grade: ['Grade 11', 'Grade 12'], 
                 student_type: ['Regular', 'Transferee', 'ALS Graduate', 'Balik-Aral'],
                 track: ['Academic', 'TechPro'], 
-                cluster: ['STEM', 'ASSH', 'BE', 'TechPro'],
-                requirements_status: ['Complete', 'Incomplete'] 
+                cluster: ['STEM', 'ASSH', 'BE', 'VGD', 'CSS', 'EIM', 'EPAS'],
+                requirements: ['Pending', 'Complete', 'Incomplete'] 
             }">
                 <div class="relative">
                     <button @click="openFilter = (openFilter === key ? null : key)" 

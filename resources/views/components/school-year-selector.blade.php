@@ -9,7 +9,6 @@
         ->unique()
         ->filter()
         ->values();
-
     $activeSY = \App\Models\Student::activeYear();
     
     // Ensure active year is always in the list even if no data exists yet
@@ -21,7 +20,6 @@
     $selectedYear = request('school_year', $activeSY);
 @endphp
 
-{{-- BUG 3 FIX: Added mt-0.5 to give room for the focus ring at the top --}}
 <div x-data="{ 
     open: false, 
     selected: '{{ $selectedYear }}',
@@ -30,13 +28,10 @@
     select(year) {
         this.selected = year;
         this.open = false;
-        (function(year) {
-            {{ $onchange ?? '' }}
-        })(year);
+        {{ $onchange ?? '' }}
     }
 }" class="relative inline-block text-left mt-0.5" @click.away="open = false">
     <div class="flex items-center gap-2">
-        {{-- BUG 2 FIX: Added whitespace-nowrap to prevent label wrapping --}}
         <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">School Year</label>
         <button @click="toggle()" type="button" 
                 class="inline-flex justify-between items-center w-full px-3 py-1.5 bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg font-semibold transition-all hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#005288] min-w-[120px]">
@@ -46,7 +41,6 @@
             </svg>
         </button>
     </div>
-
     <div x-show="open" 
          x-cloak
          x-transition:enter="transition ease-out duration-100"

@@ -91,12 +91,12 @@ def start_conveyor():
     send_command('c0')
     
     def conveyor_timer():
-        time.sleep(3)
+        time.sleep(10)
         send_command('c1')
         print("🛑 Conveyor Auto-Stopped (c1 triggered).")
         
     threading.Thread(target=conveyor_timer).start()
-    return jsonify({'status': 'success', 'command': 'c0', 'message': 'Conveyor started. Will auto-stop in 6s.'})
+    return jsonify({'status': 'success', 'command': 'c0', 'message': 'Conveyor started. Will auto-stop in 10s.'})
 
 @app.route('/api/conveyor/stop', methods=['POST'])
 def stop_conveyor():
@@ -108,7 +108,7 @@ def trigger_c0():
     send_command('c0')
     
     def delayed_c1():
-        time.sleep(5)
+        time.sleep(10)
         # Send twice for extra reliability
         send_command('c1')
         time.sleep(0.5)
@@ -116,7 +116,7 @@ def trigger_c0():
         print("🛑 Conveyor Auto-Stopped after C0 (c1 triggered twice).")
         
     threading.Thread(target=delayed_c1).start()
-    return jsonify({'status': 'success', 'command': 'c0', 'message': 'Conveyor C0 command triggered. c1 in 5s.'})
+    return jsonify({'status': 'success', 'command': 'c0', 'message': 'Conveyor C0 command triggered. c1 in 10s.'})
 
 # ==========================================
 # 3. BIN ROUTING (Fixes the /api/strand/be 404 error)

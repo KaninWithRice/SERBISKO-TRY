@@ -51,6 +51,7 @@ class FormBuilderController extends Controller
                 'form_id'     => ['integerValue' => (string) $form->id],
                 'title'       => ['stringValue'  => $form->title],
                 'description' => ['stringValue'  => $form->description ?? ''],
+                'school_year' => ['stringValue'  => $form->school_year],
                 'schema'      => ['stringValue'  => json_encode($form->schema)],
                 'share_token' => ['stringValue'  => $form->share_token],
                 'updated_at'  => ['stringValue'  => now()->toIso8601String()],
@@ -169,7 +170,14 @@ class FormBuilderController extends Controller
 
     public function index()
     {
-        $forms = CustomForm::latest()->paginate(20);
+        $query = CustomForm::latest();
+
+        // If not super_admin or admin, only show their own forms
+        if (!in_array(strtolower(auth()->user()->role), ['super_admin', 'admin'])) {
+            $query->where('created_by', auth()->id());
+        }
+
+        $forms = $query->paginate(20);
 
         return view('admin.forms.index', compact('forms'));
     }
@@ -211,6 +219,11 @@ class FormBuilderController extends Controller
 
     public function show(CustomForm $form)
     {
+        // Authorization check
+        if (!in_array(strtolower(auth()->user()->role), ['super_admin', 'admin']) && $form->created_by !== auth()->id()) {
+            abort(403, 'Unauthorized access to this form.');
+        }
+
         $studentViewUrl = env('STUDENT_VIEW_BASE_URL') . '?id=' . $form->share_token;
 
         $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='
@@ -221,11 +234,21 @@ class FormBuilderController extends Controller
 
     public function edit(CustomForm $form)
     {
+        // Authorization check
+        if (!in_array(strtolower(auth()->user()->role), ['super_admin', 'admin']) && $form->created_by !== auth()->id()) {
+            abort(403, 'Unauthorized access to this form.');
+        }
+
         return view('admin.forms.edit', compact('form'));
     }
 
     public function update(Request $request, CustomForm $form)
     {
+        // Authorization check
+        if (!in_array(strtolower(auth()->user()->role), ['super_admin', 'admin']) && $form->created_by !== auth()->id()) {
+            abort(403, 'Unauthorized access to this form.');
+        }
+
         $data = $request->validate(array_merge(
             [
                 'title'       => 'required|string|max:255',
@@ -254,6 +277,11 @@ class FormBuilderController extends Controller
 
     public function destroy(CustomForm $form)
     {
+        // Authorization check
+        if (!in_array(strtolower(auth()->user()->role), ['super_admin', 'admin']) && $form->created_by !== auth()->id()) {
+            abort(403, 'Unauthorized access to this form.');
+        }
+
         $form->delete();
         return redirect()
             ->route('admin.forms.index')
