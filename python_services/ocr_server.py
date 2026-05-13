@@ -144,7 +144,7 @@ def ocr():
         
         for p_idx, proc_img in enumerate([p1, p2, p3, p4, p5]):
             if name_verified: break
-            for rot in [None, cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_90_COUNTERCLOCKWISE]:
+            for rot in [None, cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_180, cv2.ROTATE_90_COUNTERCLOCKWISE]:
                 rotated = proc_img if rot is None else cv2.rotate(proc_img, rot)
                 results = reader.readtext(rotated, detail=0, allowlist='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789. ')
                 text = " ".join(results).lower()
