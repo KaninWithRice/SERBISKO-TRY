@@ -89,7 +89,7 @@ const EXCLUDED_FROM_EXTRA = new Set([
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function processDocument(docId, rawInput) {
-  const terminalStates = [true, 'conflict', 'locked', 'rejected', 'limit_reached'];
+  const terminalStates = [true, 'rejected', 'limit_reached'];
   if (terminalStates.includes(rawInput.isSynced)) return 'skipped';
 
   const raw = sanitizePayload(rawInput);
@@ -147,17 +147,21 @@ async function processDocument(docId, rawInput) {
       }
     }
 
-    const [[existingUser]] = await conn.execute(
+    console.log(`[DEBUG] Processing LRN: ${lrn}, Target SY: ${schoolYear}`);
+    const [rows] = await conn.execute(
       `SELECT u.id, u.first_name, u.last_name, u.birthday,
-              s.id as student_id, s.lrn as existing_lrn, s.is_manually_edited
+              s.id as student_id, s.lrn, s.is_manually_edited, s.school_year
        FROM users u
        JOIN students s ON s.user_id = u.id
-       WHERE s.lrn = ? AND s.school_year = ?
+       WHERE s.lrn = ?
+       ORDER BY (s.school_year = ?) DESC, s.created_at DESC
        LIMIT 1`,
       [lrn, schoolYear]
     );
+    const existingUser = rows[0];
+    console.log(`[DEBUG] Existing User found: ${existingUser ? 'YES (ID: ' + existingUser.id + ')' : 'NO'}`);
 
-    if (existingUser && existingUser.is_manually_edited) {
+    if (existingUser && existingUser.school_year === schoolYear && existingUser.is_manually_edited) {
       await conn.rollback();
       console.log(`🔒 [LOCKED] LRN ${lrn} is manually edited — skipping auto-sync.`);
       return 'skipped';
@@ -360,15 +364,13 @@ if (fs.existsSync(envPath)) {
 let unsubscribe = null;
 
 /**
- * Performs a "sweep" of all pending (isSynced: false) documents.
- * This acts as a robust fallback to ensure nothing is missed if the 
- * real-time listener was offline or encountered a transient error.
+ * Performs a "sweep" of all pending documents.
  */
 async function syncSweep() {
-  console.log('🧹 [SWEEP] Refreshing sync for all pending documents...');
+  console.log('🧹 [SWEEP] Refreshing sync for pending and conflict documents...');
   try {
     const snap = await db.collection('responses')
-      .where('isSynced', '==', false)
+      .where('isSynced', 'in', [false, 'conflict'])
       .get();
     
     if (snap.empty) {
@@ -376,7 +378,7 @@ async function syncSweep() {
       return;
     }
 
-    console.log(`📦 [SWEEP] Found ${snap.size} pending documents. Processing...`);
+    console.log(`📦 [SWEEP] Found ${snap.size} documents to process. Processing...`);
     for (const doc of snap.docs) {
       await processDocument(doc.id, doc.data()).catch(err => {
         console.error(`❌ [SWEEP ERROR] Failed to process ${doc.id}:`, err.message);
@@ -424,6 +426,7 @@ function startSync() {
 
 // Initial start
 startSync();
+syncSweep(); 
 
 // Robust fallback: Run a sweep every 30 minutes to ensure total consistency
 setInterval(syncSweep, 30 * 60 * 1000);

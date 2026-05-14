@@ -11,7 +11,7 @@ app = Flask(__name__)
 CORS(app)
 
 def log(msg):
-    print(f"[OCR-LOG] {msg}", flush=True)
+    print(f"🟢 [OCR-LOG] {msg}", flush=True)
 
 log("OCR ENGINE v9.16 FUZZY-DOC HYBRID STARTING...")
 
@@ -81,16 +81,18 @@ def ocr():
     first_name = request.form.get('first_name', '').lower()
     last_name = request.form.get('last_name', '').lower()
     expected_lrn = request.form.get('expected_lrn', '')
-    log(f"REQUEST: {doc_type.upper()} | NAME: {first_name} {last_name}")
+    log(f"REQUEST: {doc_type.upper()} | NAME: {first_name} {last_name} | EXPECTED LRN: {expected_lrn}")
     try:
         img_bytes = request.files['image'].read()
         img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
         if img is None: return jsonify({'success': False, 'error': 'Invalid image format.'}), 400
+        
         h, w = img.shape[:2]
         target_w = 2200
         if w > target_w:
             scale = target_w / w
             img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_LANCZOS4)
+            
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8,8))
         p1 = clahe.apply(gray)
@@ -102,7 +104,7 @@ def ocr():
         p5 = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 31, 15)
         
         best_text, found_doc, all_lrn_candidates, name_verified = "", False, [], False
-        # v9.16: Calibrated Document Recognition Configuration
+        # v9.16: Calibrated Document Recognition Configuration (with local v9.20 keywords)
         doc_config = {
             'report_card': {
                 'strong': ['sf9', 'schoolform9', 'reportcard', 'form9', 'learner progress', 'progress report', 'periodic rating', 'learning area', 'core values', 'final rating', 'remarks'], 
@@ -203,6 +205,7 @@ def ocr():
                 name_verified = True
                 
         if not name_verified:
+            log(f"NAME MISMATCH. Expected: {first_name} {last_name}")
             return jsonify({'success': False, 'error': f"Name mismatch. Student name not found on document."})
             
         return jsonify({
@@ -220,5 +223,5 @@ def ocr():
 def status(): return jsonify({'status': 'online'})
 
 if __name__ == '__main__':
-    log("Starting OCR Hybrid v9.16 on Port 9002...")
-    app.run(host='0.0.0.0', port=9002, threaded=True)
+    log("Starting OCR Hybrid v9.16 on Port 9001...")
+    app.run(host='0.0.0.0', port=9001, threaded=True)

@@ -35,7 +35,7 @@ class ScanController extends Controller
             Http::timeout(3)->post('http://' . env('SERVICE_HOST', '127.0.0.1') . ':51234/api/conveyor/c0');
             Log::info("Arduino Success commands (F + c0) sent.");
         } catch (\Exception $e) {
-            Log::error("Arduino Success Trigger failed: " . $e->getMessage()); 
+            Log::error("Arduino Success Trigger failed: " . $e->getMessage());
         }
     }
 
@@ -46,7 +46,7 @@ class ScanController extends Controller
             Http::timeout(3)->post('http://' . env('SERVICE_HOST', '127.0.0.1') . ':51234/api/strand/' . $cluster);
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);       
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
@@ -55,47 +55,71 @@ class ScanController extends Controller
             Http::timeout(3)->post('http://' . env('SERVICE_HOST', '127.0.0.1') . ':51234/api/conveyor/stop');
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);       
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
     /**
      * FUZZY MATCHMAKER (STRICTLY AGAINST DATABASE)
      * Finds the closest LRN in the students table from OCR candidates.
+     * PRIORITIZES the preferred LRN if provided.
      */
-    private function findBestLrnMatch($candidates, $preferredLrn = null) {     
+    private function findBestLrnMatch($candidates, $preferredLrn = null) {
         if (empty($candidates)) return null;
 
+        // Clean and normalize candidates
         $cleanCandidates = array_map(fn($c) => preg_replace('/[^0-9]/', '', $c), $candidates);
-        $cleanCandidates = array_filter($cleanCandidates, fn($c) => strlen($c) >= 6);
+        $cleanCandidates = array_filter($cleanCandidates, fn($c) => strlen($c) >= 10);
         $cleanCandidates = array_unique($cleanCandidates);
 
+        // 1. High-Priority Check: Does any candidate match the preferred LRN closely?
         if ($preferredLrn) {
-            $cleanPreferred = preg_replace('/[^0-9]/', '', $preferredLrn);     
+            $cleanPreferred = preg_replace('/[^0-9]/', '', $preferredLrn);
             foreach ($cleanCandidates as $cand) {
                 similar_text($cand, $cleanPreferred, $percent);
-                if ($percent >= 40) {
+                // Require 67% match (approx 8/12 digits) to consider it the same student
+                if ($percent >= 67) {
                     Log::info("Preferred LRN Match Found (High Priority)", ['lrn' => $preferredLrn, 'percent' => $percent]);
                     return $preferredLrn;
                 }
             }
         }
 
+        // 2. General Database Match (Fallback)
         $allLrns = DB::table('students')->pluck('lrn')->toArray();
         $bestMatch = null;
-        $bestScore = 999;
+        $bestScore = 999; 
+        $bestDist = 999;
 
         foreach ($cleanCandidates as $cand) {
             foreach ($allLrns as $dbLrn) {
                 $cleanDb = preg_replace('/[^0-9]/', '', $dbLrn);
                 $dist = levenshtein($cand, $cleanDb);
-                if ($dist <= 3) {
-                    if ($dist < $bestScore) {
-                        $bestScore = $dist;
+                
+                // Weighting: Prefix match is a strong signal for LRNs
+                $prefixLen = 0;
+                $maxCheck = min(strlen($cand), strlen($cleanDb), 6);
+                for($i=0; $i<$maxCheck; $i++) {
+                    if($cand[$i] === $cleanDb[$i]) $prefixLen++;
+                    else break;
+                }
+
+                // Calculate a score where prefix matches reduce the "perceived" distance
+                $score = $dist - ($prefixLen * 0.7);
+
+                // Acceptance criteria: Strict matching for database fallback
+                if ($dist <= 2 || ($dist <= 3 && $prefixLen >= 4)) {
+                    if ($score < $bestScore) {
+                        $bestScore = $score;
                         $bestMatch = $dbLrn;
+                        $bestDist = $dist;
                     }
                 }
             }
+        }
+
+        if ($bestMatch) {
+            Log::info("LRN Closest Match Found in Database", ['matched' => $bestMatch, 'score' => $bestScore]);
         }
 
         return $bestMatch;
@@ -104,16 +128,16 @@ class ScanController extends Controller
     public function processDocument(Request $request)
     {
         try {
-            set_time_limit(0);
+            set_time_limit(0); 
             $imageData = $request->input('image_data');
-            $docType = $request->input('document_type', 'Report Card (SF9)');  
+            $docType = $request->input('document_type', 'Report Card (SF9)');
             $userId = session('user_id', 1);
             $studentId = $this->getStudentId($userId);
 
             Log::info("--- START processDocument ---", ['userId' => $userId, 'studentId' => $studentId, 'docType' => $docType]);
             session(['current_doc' => $docType]);
 
-            if (!$imageData || strpos($imageData, ';base64,') === false) {     
+            if (!$imageData || strpos($imageData, ';base64,') === false) {
                 return response()->json(['status' => 'error', 'message' => 'Image data is invalid.']);
             }
 
@@ -121,8 +145,8 @@ class ScanController extends Controller
             $imageTypeAux = explode("image/", $imageParts[0]);
             $imageType = $imageTypeAux[1] ?? 'jpeg';
             $imageBase64 = base64_decode($imageParts[1]);
-
-            $fileName = 'scan_' . $userId . '_' . time() . '.' . $imageType;   
+            
+            $fileName = 'scan_' . $userId . '_' . time() . '.' . $imageType;
             $filePath = 'scans/' . $fileName;
             Storage::disk('public')->put($filePath, $imageBase64);
             $imageFullPath = storage_path('app/public/' . $filePath);
@@ -143,7 +167,7 @@ class ScanController extends Controller
                     ]
                 );
                 DB::table('scans')->where('id', $scanId)->update(['status' => 'verified', 'remarks' => 'Stored', 'updated_at' => now()]);
-                return response()->json(['status' => 'success', 'redirect' => url('/student/verifying')]);
+                return response()->json(['status' => 'success', 'redirect' => '/student/verifying']);
             }
 
             $student = Student::find($studentId);
@@ -153,7 +177,7 @@ class ScanController extends Controller
                 ['student_id' => $studentId],
                 [
                     "{$prefix}_path" => $filePath, "{$prefix}_status" => 'pending', "{$prefix}_remarks" => 'Processing...',
-                    'latest_scan_type' => $docType, 'latest_scan_status' => 'pending', 'latest_scan_remarks' => 'Processing...', 'updated_at' => now()        
+                    'latest_scan_type' => $docType, 'latest_scan_status' => 'pending', 'latest_scan_remarks' => 'Processing...', 'updated_at' => now()
                 ]
             );
 
@@ -179,89 +203,68 @@ class ScanController extends Controller
             elseif (str_contains($lowerDoc, 'affidavit') || str_contains($lowerDoc, 'sworn')) $pythonDocType = 'affidavit';
             elseif (str_contains($lowerDoc, 'moral')) $pythonDocType = 'good_moral';
             elseif (str_contains($lowerDoc, '137') || str_contains($lowerDoc, 'sf10')) $pythonDocType = 'form_137';
-            else $pythonDocType = 'generic_name_check';
+            else $pythonDocType = 'generic_name_check'; 
 
             $user = DB::table('users')->where('id', $userId)->first();
             $expectedFirstName = $user->first_name ?? 'Unknown';
             $expectedLastName = $user->last_name ?? 'Unknown';
 
             try {
-                Log::info("--- TRACE: Sending Image to OCR ---");
                 $ocrResponse = Http::timeout(300)
                     ->attach('image', file_get_contents($imageFullPath), $fileName)
-                    ->post('http://'.env('SERVICE_HOST', '127.0.0.1').':9002/ocr', [
-                        'doc_type' => $pythonDocType,
+                    ->post('http://'.env('SERVICE_HOST', '127.0.0.1').':9001/ocr', [
+                        'doc_type' => $pythonDocType, 
                         'scan_id' => $userId,
-                        'first_name' => $expectedFirstName,
+                        'first_name' => $expectedFirstName, 
                         'last_name' => $expectedLastName,
                         'expected_lrn' => $expectedLrn
                     ]);
 
                 if ($ocrResponse->failed()) {
-                    Log::error("--- TRACE: OCR Call Failed ---");
                     $handleFailure('OCR Server Error');
-                    return response()->json(['status' => 'success', 'redirect' => url('/student/verifying')]);
+                    return response()->json(['status' => 'success', 'redirect' => '/student/verifying']);
                 }
 
                 $ocrResult = $ocrResponse->json();
-                Log::info("--- TRACE: OCR Result received ---", ['success' => $ocrResult['success'] ?? false]);
-
                 if (isset($ocrResult['success']) && $ocrResult['success'] === false) {
                     $handleFailure($ocrResult['error'] ?? 'Document Rejected.');
-                    return response()->json(['status' => 'success', 'redirect' => url('/student/verifying')]);
+                    return response()->json(['status' => 'success', 'redirect' => '/student/verifying']);
                 }
 
                 if (isset($ocrResult['success']) && $ocrResult['success'] === true) {
+                    // --- SMART MATCHMAKING ---
                     $candidates = $ocrResult['candidates'] ?? [$ocrResult['lrn'] ?? null];
                     $candidates = array_filter($candidates);
-
-                    if ($expectedLrn && !empty($ocrResult['name_verified'])) {
-                        Log::info("--- TRACE: Absolute Name Rescue Triggered ---");
-                        $lrn = $expectedLrn;
-                    } else {
-                        $lrn = $this->findBestLrnMatch($candidates, $expectedLrn);
-                    }
-
+                    
+                    // PRIORITIZE: If the user is logged in, and OCR verified the name/doc, use the system LRN.
+                    $lrn = $expectedLrn ?: $this->findBestLrnMatch($candidates);
+                    
                     if ($lrn) DB::table('scans')->where('id', $scanId)->update(['lrn' => $lrn]);
 
                     $isReportCard = (str_contains(strtolower($docType), 'report') || str_contains(strtolower($docType), 'sf9'));
                     if ($isReportCard) {
                         if (!$lrn) {
-                            $handleFailure("Could not find your record in the database based on the scanned LRN. (v9.6)");
-                            return response()->json(['status' => 'success', 'redirect' => url('/student/verifying')]);
+                            $handleFailure("Could not find your record in the database based on the scanned LRN.");
+                            return response()->json(['status' => 'success', 'redirect' => '/student/verifying']);
                         }
 
-                        Log::info("--- TRACE: Updating Kiosk to 'Sending to LIS...' ---");
                         DB::table('kiosk_enrollments')->where('student_id', $studentId)->update([
                             'sf9_remarks' => 'Sending to LIS...', 'student_lrn' => $lrn,
                             'latest_scan_remarks' => 'Sending to LIS...', 'updated_at' => now()
                         ]);
-
-                        $enrollingGrade = session('grade_level') ?: DB::table('kiosk_enrollments')->where('student_id', $studentId)->value('grade_level') ?: '11';
+                        
+                        $enrollingGrade = session('grade_level') ?: DB::table('kiosk_enrollments')->where('student_id', $studentId)->value('grade_level') ?: '11'; 
                         $expectedGrade = ($enrollingGrade == '12') ? 'Grade 11' : 'Grade 10';
-                        
-                        $callbackUrl = url('/api/lis-callback');
-                        // Ensure we don't have double index.php or other path issues
-                        $callbackUrl = str_replace('/index.php/api', '/api', $callbackUrl);
-                        
-                        $studentName = ($user->first_name ?? '') . ' ' . ($user->last_name ?? '');
+                        $callbackUrl = $request->getSchemeAndHttpHost() . '/api/lis-callback'; 
 
-                        Log::info("--- TRACE: Initiating LIS POST ---", ['url' => 'http://127.0.0.1:5001/verify', 'callback' => $callbackUrl]);
                         try {
-                            $lisResp = Http::timeout(10)->post('http://127.0.0.1:5001/verify', [
-                                'lrn' => $lrn, 
-                                'expected_grade' => $expectedGrade, 
-                                'student_name' => $studentName,
-                                'webhook_url' => $callbackUrl, 
-                                'scan_id' => $scanId
+                            Http::timeout(10)->post('http://'.env('SERVICE_HOST', '127.0.0.1').':5001/verify', [
+                                'lrn' => $lrn, 'expected_grade' => $expectedGrade, 'webhook_url' => $callbackUrl, 'scan_id' => $scanId
                             ]);
-                            Log::info("--- TRACE: LIS Server Response ---", ['body' => $lisResp->body()]);
                         } catch (\Exception $e) {
-                            Log::error("--- TRACE: LIS POST Failed ---", ['msg' => $e->getMessage()]);
-                            $handleFailure('LIS Verifier is offline.');        
+                            $handleFailure('LIS Verifier is offline.');
                         }
                     } else {
-                        Log::info("--- TRACE: Non-SF9 Verified Instantly ---");
                         DB::table('kiosk_enrollments')->where('student_id', $studentId)->update([
                             "{$prefix}_status" => 'verified', "{$prefix}_remarks" => 'Verified',
                             'latest_scan_status' => 'verified', 'latest_scan_remarks' => 'Verified', 'updated_at' => now()
@@ -270,11 +273,10 @@ class ScanController extends Controller
                     }
                 }
             } catch (\Exception $e) {
-                Log::error("OCR Exception", ['error' => $e->getMessage()]);    
+                Log::error("OCR Exception", ['error' => $e->getMessage()]);
                 $handleFailure('AI Engine Offline');
             }
-            Log::info("--- TRACE: processDocument Returning SUCCESS to Browser ---");
-            return response()->json(['status' => 'success', 'redirect' => url('/student/verifying')]);
+            return response()->json(['status' => 'success', 'redirect' => '/student/verifying']);
         } catch (\Exception $e) {
             Log::error("FATAL ERROR in processDocument", ['msg' => $e->getMessage()]);
             return response()->json(['status' => 'error', 'message' => 'System Error.']);
@@ -284,78 +286,54 @@ class ScanController extends Controller
     public function lisCallback(Request $request)
     {
         $scanId = $request->input('scan_id');
-        $status = $request->input('result');
+        $status = $request->input('result'); 
         $extractedLrn = $request->input('lrn');
-        $lisName = $request->input('lis_name');
-        $lisText = $request->input('lis_text', '');
-
-        Log::info("--- TRACE: LIS Callback RECEIVED ---", ['scanId' => $scanId, 'status' => $status, 'lis_name' => $lisName]);
-        
+        Log::info("LIS Callback received", ['scanId' => $scanId, 'status' => $status, 'lrn' => $extractedLrn]);
         if ($scanId && $status) {
             $scan = DB::table('scans')->where('id', $scanId)->first();
-            if (!$scan) return response()->json(['success' => false], 404);    
-            
-            $student = DB::table('students')->where('user_id', $scan->user_id)->first();
-            if (!$student) return response()->json(['success' => false], 404);
-            $studentId = $student->id; 
-
-            $user = DB::table('users')->where('id', $scan->user_id)->first();
-
+            if (!$scan) return response()->json(['success' => false], 404);
+            $studentId = $this->getStudentId($scan->user_id);
             $finalStatus = ($status === 'verified_lis') ? 'verified' : 'failed';
-            $remarks = ($finalStatus === 'verified') ? 'Verified via LIS' : 'LIS Verification Failed.';
-
-            if ($finalStatus === 'verified' && $user) {
-                $lisNameLower = strtolower($lisName);
-                $lisTextLower = strtolower($lisText);
-                $nameMatched = false;
-                if (!empty($lisName) && (str_contains($lisNameLower, strtolower($user->last_name)) || str_contains($lisNameLower, strtolower($user->first_name)))) {
-                    $nameMatched = true;
-                } elseif (str_contains($lisTextLower, strtolower($user->last_name)) && str_contains($lisTextLower, strtolower($user->first_name))) {
-                    $nameMatched = true;
-                }
-
-                if (!$nameMatched) {
-                    Log::warning("--- TRACE: LIS Name Mismatch! ---", ['db_name' => $user->first_name, 'lis_name' => $lisName]);
-                    $finalStatus = 'failed';
-                    $remarks = "LIS record found, but name does not match ('{$lisName}').";
-                }
-            }
-
             if ($finalStatus === 'failed') {
                 $enrollment = DB::table('kiosk_enrollments')->where('student_id', $studentId)->first();
                 $newAttempts = ($enrollment->sf9_attempts ?? 0) + 1;
                 $dbStatus = ($newAttempts >= 3) ? 'manual_verification' : 'failed';
-                $failRemarks = ($newAttempts >= 3) ? 'Sent to Admin for Manual Verification.' : $remarks;
-                
+                $remarks = ($newAttempts >= 3) ? 'Sent to Admin for Manual Verification.' : 'LIS Verification Failed.';
                 DB::table('kiosk_enrollments')->where('student_id', $studentId)->update([
-                    'sf9_status' => $dbStatus, 'sf9_remarks' => $failRemarks, 'sf9_attempts' => $newAttempts,
-                    'latest_scan_status' => $dbStatus, 'latest_scan_remarks' => $failRemarks, 'updated_at' => now()
+                    'sf9_status' => $dbStatus, 'sf9_remarks' => $remarks, 'sf9_attempts' => $newAttempts,
+                    'latest_scan_status' => $dbStatus, 'latest_scan_remarks' => $remarks, 'updated_at' => now()
                 ]);
-                DB::table('scans')->where('id', $scanId)->update(['status' => $dbStatus, 'remarks' => $failRemarks, 'updated_at' => now()]);
+                DB::table('scans')->where('id', $scanId)->update(['status' => $dbStatus, 'remarks' => $remarks, 'updated_at' => now()]);
             } else {
+                if ($extractedLrn) {
+                    $student = Student::find($studentId);
+                    if ($student && $student->lrn !== $extractedLrn) {
+                        $student->update(['lrn' => $extractedLrn]);
+                        DB::table('kiosk_enrollments')->where('student_id', $studentId)->update(['student_lrn' => $extractedLrn]);
+                    }
+                }
                 DB::table('kiosk_enrollments')->where('student_id', $studentId)->update([
-                    'sf9_status' => 'verified', 'sf9_remarks' => $remarks,
-                    'latest_scan_status' => 'verified', 'latest_scan_remarks' => $remarks, 'updated_at' => now()
+                    'sf9_status' => 'verified', 'sf9_remarks' => 'Verified via LIS',
+                    'latest_scan_status' => 'verified', 'latest_scan_remarks' => 'Verified via LIS', 'updated_at' => now()
                 ]);
-                DB::table('scans')->where('id', $scanId)->update(['status' => 'verified', 'remarks' => $remarks, 'updated_at' => now()]);
+                DB::table('scans')->where('id', $scanId)->update(['status' => 'verified', 'remarks' => 'Verified via LIS', 'updated_at' => now()]);
             }
-            Log::info("--- TRACE: Database Updated via LIS Callback ---");
             return response()->json(['success' => true]);
         }
         return response()->json(['success' => false], 400);
     }
-
+    
     public function checkScanStatus()
     {
         $userId = session('user_id');
         if (!$userId) return response()->json(['status' => 'error']);
         $studentId = $this->getStudentId($userId);
         $enrollment = DB::table('kiosk_enrollments')->where('student_id', $studentId)->first();
-        if (!$enrollment) return response()->json(['status' => 'pending']);    
+        if (!$enrollment) return response()->json(['status' => 'pending']);
         $docType = session('current_doc', 'Report Card (SF9)');
         $prefix = $this->getPrefix($docType);
         $attempts = $enrollment->{$prefix . '_attempts'} ?? 0;
-        $currentStatus = $enrollment->{$prefix . '_status'} ?? 'pending';      
+        $currentStatus = $enrollment->{$prefix . '_status'} ?? 'pending';
         $currentRemarks = $enrollment->{$prefix . '_remarks'} ?? 'Processing...';
         $shouldTriggerHardware = (str_contains(strtolower($docType), 'sf9') && !str_contains(strtolower($docType), 'back')) ? false : true;
         return response()->json([
@@ -368,9 +346,9 @@ class ScanController extends Controller
         $userId = session('user_id');
         if (!$userId) return response()->json(['rejected' => false]);
         try {
-            $response = Http::timeout(2)->get('http://127.0.0.1:51234/api/sensor/check-rejection');
+            $response = Http::timeout(2)->get('http://' . env('SERVICE_HOST', '127.0.0.1') . ':51234/api/sensor/check-rejection');
             $data = $response->json();
-            if (isset($data['rejected']) && $data['rejected'] === true) {      
+            if (isset($data['rejected']) && $data['rejected'] === true) {
                 $docType = session('current_doc', 'Unknown Document');
                 $studentId = $this->getStudentId($userId);
                 $enrollment = DB::table('kiosk_enrollments')->where('student_id', $studentId)->first();
@@ -382,7 +360,7 @@ class ScanController extends Controller
                     }
                 }
                 if (!$alreadyExists) {
-                    $rejectedPapers[] = ['document_type' => $docType, 'rejected_at' => now()->toDateTimeString(), 'prefix' => $this->getPrefix($docType)];    
+                    $rejectedPapers[] = ['document_type' => $docType, 'rejected_at' => now()->toDateTimeString(), 'prefix' => $this->getPrefix($docType)];
                     DB::table('kiosk_enrollments')->where('student_id', $studentId)->update(['rejected_papers' => json_encode($rejectedPapers)]);
                 }
                 return response()->json(['rejected' => true]);
@@ -398,7 +376,7 @@ class ScanController extends Controller
         $enrollment = DB::table('kiosk_enrollments')->where('student_id', $studentId)->first();
         if ($currentDoc && (str_contains(strtolower($currentDoc), 'sf9') && !str_contains(strtolower($currentDoc), 'back'))) {
              if ($enrollment && $enrollment->sf9_status === 'verified' && ($enrollment->sf9_back_status !== 'verified' && $enrollment->sf9_back_status !== 'manual_verification')) {
-                 return url('/student/capture?doc=' . urlencode('Report Card (SF9 Back)'));
+                 return '/student/capture?doc=' . urlencode('Report Card (SF9 Back)');
              }
         }
         if (!empty($selectedDocs)) {
@@ -408,20 +386,20 @@ class ScanController extends Controller
                     if (str_contains(strtolower($doc), 'sf9') && !str_contains(strtolower($doc), 'back')) { $currentIndex = $idx; break; }
                 }
             }
-            if ($currentIndex !== false && isset($selectedDocs[$currentIndex + 1])) return url('/student/capture?doc=' . urlencode($selectedDocs[$currentIndex + 1]));
+            if ($currentIndex !== false && isset($selectedDocs[$currentIndex + 1])) return '/student/capture?doc=' . urlencode($selectedDocs[$currentIndex + 1]);
         }
         if ($enrollment) {
             $enrollController = new \App\Http\Controllers\EnrollmentController();
             $requiredDocs = $enrollController->getRequiredDocs($enrollment->academic_status);
             $allVerified = true;
             foreach ($requiredDocs as $label => $prefix) {
-                $status = $enrollment->{$prefix . '_status'} ?? 'pending';     
+                $status = $enrollment->{$prefix . '_status'} ?? 'pending';
                 if ($prefix === 'sf9') {
                     if (($status !== 'verified' && $status !== 'manual_verification') || ($enrollment->sf9_back_status !== 'verified' && $enrollment->sf9_back_status !== 'manual_verification')) { $allVerified = false; break; }
                 } elseif ($status !== 'verified' && $status !== 'manual_verification') { $allVerified = false; break; }
             }
-            if ($allVerified) return url('/student/thankyou');
+            if ($allVerified) return '/student/thankyou';
         }
-        return url('/student/checklist');
+        return '/student/checklist';
     }
 }

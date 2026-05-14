@@ -12,19 +12,13 @@ class VerificationController extends Controller
 {
     public function verification()
     { 
-        $activeSY = \App\Models\Student::activeYear();
-
         // Query the actual scans table for manual verification requests
         $pendingScans = DB::table('scans')
             ->join('users', 'scans.user_id', '=', 'users.id')
-            ->leftJoin('students', function($join) use ($activeSY) {
-                $join->on('users.id', '=', 'students.user_id')
-                     ->where('students.school_year', '=', $activeSY);
-            })
+            ->leftJoin('students', 'users.id', '=', 'students.user_id')
             ->leftJoin('kiosk_enrollments', 'students.id', '=', 'kiosk_enrollments.student_id')
             ->leftJoin('pre_enrollments as pe', 'students.id', '=', 'pe.student_id')
             ->where('scans.status', 'manual_verification')
-
             ->select(
                 'scans.id',
                 'scans.document_type',

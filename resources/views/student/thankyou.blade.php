@@ -230,6 +230,5 @@
             }
         }
     </script>
-    @include('includes.keyboard')
 </body>
 </html>

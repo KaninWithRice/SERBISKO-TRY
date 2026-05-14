@@ -164,9 +164,9 @@
 
         // 1. SERVER PINGING LOGIC (RUNS ONCE)
         const SERVERS = {
-            ocr: { url: `http://127.0.0.1:9002/status`, method: 'GET', label: 'OCR Engine' },
-            lis: { url: `http://127.0.0.1:5001/status`, method: 'GET', label: 'LIS Verifier' },
-            arduino: { url: `http://127.0.0.1:51234/status`, method: 'GET', label: 'Arduino Link' }
+            ocr: { url: `http://${window.location.hostname}:9001/status`, method: 'GET', label: 'OCR Engine' },
+            lis: { url: `http://${window.location.hostname}:5001/status`, method: 'GET', label: 'LIS Verifier' },
+            arduino: { url: `http://${window.location.hostname}:51234/status`, method: 'GET', label: 'Arduino Link' }
         };
 
         function updateBadge(id, isOnline, label) {
