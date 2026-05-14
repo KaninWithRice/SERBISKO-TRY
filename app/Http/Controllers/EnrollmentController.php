@@ -247,7 +247,7 @@ class EnrollmentController extends Controller
             DB::table('kiosk_enrollments')->where('student_id', $student->id)->update([
                 'receipt_number' => $receiptNumber,
                 'completed_at' => now(),
-                'academic_status' => 'For Enrollment' // Update status to For Enrollment once complete
+                'milestone_status' => 'Complete' 
             ]);
 
             // Refresh enrollment object

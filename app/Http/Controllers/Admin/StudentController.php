@@ -44,6 +44,7 @@ class StudentController extends Controller
                 DB::raw("COALESCE(kiosk_enrollments.cluster, JSON_UNQUOTE(JSON_EXTRACT(pre_enrollments.responses, '$.cluster'))) as display_cluster"),
                 DB::raw("COALESCE(kiosk_enrollments.academic_status, JSON_UNQUOTE(JSON_EXTRACT(pre_enrollments.responses, '$.academic_status'))) as display_status"),
                 'kiosk_enrollments.academic_status as kiosk_status',
+                'kiosk_enrollments.milestone_status as milestone_status',
                 'kiosk_enrollments.grade_level as kiosk_grade',
                 'kiosk_enrollments.receipt_number'
             );
@@ -83,20 +84,19 @@ class StudentController extends Controller
             $status = $request->status;
 
             if ($status === 'Registered') {
-                $query->whereNull('kiosk_enrollments.grade_level');
+                $query->where(function($q) {
+                    $q->where('kiosk_enrollments.milestone_status', 'Registered')
+                      ->orWhereNull('kiosk_enrollments.milestone_status');
+                });
 
             } elseif ($status === 'Partial Compliance') {
-                $query->whereNotNull('kiosk_enrollments.grade_level')
-                      ->whereNotIn('kiosk_enrollments.academic_status', ['Enrolled', 'Officially Enrolled'])
-                      ->whereRaw('(SELECT COUNT(*) FROM scans WHERE (scans.lrn = students.lrn OR scans.user_id = users.id) AND scans.status = ?) < 3', ['verified']);
+                $query->where('kiosk_enrollments.milestone_status', 'Partial Compliance');
 
             } elseif ($status === 'For Enrollment') {
-                $query->whereNotNull('kiosk_enrollments.grade_level')
-                      ->whereNotIn('kiosk_enrollments.academic_status', ['Enrolled', 'Officially Enrolled'])
-                      ->whereRaw('(SELECT COUNT(*) FROM scans WHERE (scans.lrn = students.lrn OR scans.user_id = users.id) AND scans.status = ?) >= 3', ['verified']);
+                $query->where('kiosk_enrollments.milestone_status', 'Complete');
 
             } elseif ($status === 'Enrolled') {
-                $query->whereIn('kiosk_enrollments.academic_status', ['Enrolled', 'Officially Enrolled']);
+                $query->whereIn('kiosk_enrollments.milestone_status', ['Enrolled', 'Officially Enrolled']);
             }
         }
 

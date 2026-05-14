@@ -107,32 +107,32 @@ def ocr():
             'report_card': {
                 'strong': ['sf9', 'schoolform9', 'reportcard', 'form9', 'learner progress', 'progress report', 'periodic rating', 'learning area', 'core values', 'final rating', 'remarks'], 
                 'weak': ['quarter', 'subject', 'narrative report', 'attendance', 'teacher', 'principal', 'adviser'],
-                'block': ['psa', 'nso', 'registry', 'birth', 'affidavit', 'moral', 'als', 'alternative', 'completer certificate', 'marriage', 'death', 'enrollment', 'registration', 'basic education', 'be lfd', 'learner information']
+                'block': ['psa', 'nso', 'registry', 'birth', 'affidavit', 'moral', 'als', 'alternative', 'marriage', 'death', 'enrollment', 'registration', 'basic education', 'be lfd', 'learner information']
             },
             'birth_certificate': {
                 'strong': ['psa', 'nso', 'registry', 'birth', 'live birth'], 
-                'weak': ['certificate', 'live', 'born', 'child', 'registry number', 'republic', 'philippines', 'statistics', 'authority', 'census', 'civil', 'register'],
-                'block': ['enrollment', 'sf9', 'form9', 'school form', 'report card', 'rating', 'attendance', 'learner progress', 'moral']
+                'weak': ['live', 'born', 'child', 'registry number', 'republic', 'philippines', 'statistics', 'authority', 'census', 'civil', 'register'],
+                'block': ['enrollment', 'rating', 'attendance', 'learner progress', 'moral']
             },
             'enroll_form': {
                 'strong': ['enrollment', 'basic education', 'learner information', 'be lfd'],
                 'weak': ['registration', 'form', 'student', 'school', 'year', 'parent', 'signature', 'date', 'semester', 'grade', 'guardian', 'contact number', 'sex', 'age', 'birthday'],
-                'block': ['psa', 'nso', 'registry', 'birth', 'live birth', 'born', 'certificate', 'statistics', 'civil', 'census', 'sf9', 'form9', 'report card', 'rating', 'periodic rating', 'core values', 'learning area']
+                'block': ['psa', 'nso', 'registry', 'birth', 'live birth', 'born', 'statistics', 'civil', 'census', 'rating', 'periodic rating', 'core values', 'learning area']
             },
             'als_certificate': {
                 'strong': ['als', 'alternative learning', 'equivalency', 'elementary completer', 'secondary completer'],
-                'weak': ['certificate', 'completion', 'passer', 'rating', 'deped', 'department', 'education'],
+                'weak': ['completion', 'passer', 'rating', 'deped', 'department', 'education'],
                 'block': ['psa', 'nso', 'registry', 'birth', 'marriage', 'death']
             },
             'good_moral': {
                 'strong': ['good moral', 'character', 'conduct'],
-                'weak': ['certificate', 'recommendation', 'student', 'school', 'principal', 'office', 'clearance'],
-                'block': ['psa', 'nso', 'registry', 'birth', 'sf9', 'form9', 'report card']
+                'weak': ['recommendation', 'student', 'school', 'principal', 'office', 'clearance'],
+                'block': ['psa', 'nso', 'registry', 'birth']
             },
             'affidavit': {
                 'strong': ['affidavit', 'sworn', 'statement', 'notary'],
                 'weak': ['republic', 'philippines', 'legal', 'witness', 'subscribe', 'oath'],
-                'block': ['sf9', 'form9', 'report card', 'psa', 'nso']
+                'block': ['psa', 'nso']
             },
             'form_137': {
                 'strong': ['sf10', 'school form 10', 'form 137', 'permanent record'],

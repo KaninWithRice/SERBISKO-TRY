@@ -87,6 +87,7 @@
                                 'Registered'         => ['label' => 'Pending',    'class' => 'text-gray-500'],
                                 'Partial Compliance' => ['label' => 'Incomplete',  'class' => 'text-amber-600'],
                                 'For Enrollment'     => ['label' => 'Complete',    'class' => 'text-green-600 font-bold'],
+                                'Enrolled'           => ['label' => 'Officially Enrolled', 'class' => 'text-green-800 font-bold'],
                             ];
                             $req = $reqMap[$student->enrollment_category] ?? ['label' => $student->requirement_display, 'class' => $student->requirement_style];
                         @endphp

@@ -164,10 +164,11 @@ def run_check(lrn, expected_grade, webhook, scan_id):
             wait_modal.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(),'Most recent enrolment')]")))
             
             time.sleep(1) 
-            text = driver.find_element(By.TAG_NAME, "body").text
+            modal = wait_modal.until(EC.presence_of_element_located((By.XPATH, "//*[contains(@class, 'modal-content')]")))
+            text = modal.text
             
-            print("\n=== WHAT SELENIUM SEES ===")
-            print(text[:800] + "...") 
+            print("\n=== LIS MODAL CONTENT ===")
+            print(text) 
             print("==========================\n")
             
             # --- DYNAMIC GRADE CHECK ---
@@ -178,15 +179,20 @@ def run_check(lrn, expected_grade, webhook, scan_id):
                 result = "failed_lis"
                 print(f"[FAILED] FAILED: Grade mismatch. Expected {expected_grade}, but it was not found in the modal.")
             
-            # Extract headers to send as lis_name for validation
+            # Extract name from Basic profile
             try:
+                # Find the 'Last name' and 'First name' labels and get the text after them
+                last_name = driver.find_element(By.XPATH, "//div[contains(text(), 'Last name')]/following-sibling::div").text
+                first_name = driver.find_element(By.XPATH, "//div[contains(text(), 'First name')]/following-sibling::div").text
+                extracted_name = f"{first_name} {last_name}"
+                print(f"[*] Extracted Name from LIS: {extracted_name}")
+            except:
+                # Fallback to older header method
                 headers = driver.find_elements(By.XPATH, "//h4 | //h3")
                 for h in headers:
                     if len(h.text) > 3:
                         extracted_name = h.text
                         break
-            except:
-                pass
                 
         except Exception as e:
             result = "failed_lis"
