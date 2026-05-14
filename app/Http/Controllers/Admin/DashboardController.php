@@ -19,12 +19,13 @@ class DashboardController extends Controller
         // Reusable filter
         $applyFilter = function($query) use ($grade) {
             if (!empty($grade)) {
-                $query->where(function($q) use ($grade) {
-                    // FALLBACK LOGIC: 1. Kiosk -> 2. Pre-Enrollment JSON
-                    $q->where('kiosk_enrollments.grade_level', '=', $grade)
+                $gradeNumber = preg_replace('/[^0-9]/', '', $grade);
+
+                $query->where(function($q) use ($grade, $gradeNumber) {
+                    $q->where('kiosk_enrollments.grade_level', '=', $gradeNumber)
                     ->orWhere(function($sq) use ($grade) {
                         $sq->whereNull('kiosk_enrollments.grade_level')
-                            ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(pre_enrollments.responses, '$.grade_level')) = ?", [$grade]);
+                            ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(pre_enrollments.responses, '$.grade_level')) LIKE ?", ["%{$grade}%"]);
                     });
                 });
             }
@@ -50,7 +51,7 @@ class DashboardController extends Controller
             ->count('students.lrn');
 
         $totalEnrolled = $applyFilter(clone $baseQuery)
-            ->whereIn('kiosk_enrollments.academic_status', ['Officially Enrolled', 'Enrolled'])
+            ->whereIn('kiosk_enrollments.milestone_status', ['Officially Enrolled', 'Enrolled'])
             ->count('students.lrn');
 
         // --- Stats Calculation ---
@@ -127,7 +128,8 @@ class DashboardController extends Controller
                 'pre_enrollments.responses'
             )
             ->when(!empty($grade), function($q) use ($grade) {
-                return $q->where('kiosk_enrollments.grade_level', $grade);
+                $gradeNumber = preg_replace('/[^0-9]/', '', $grade);
+                return $q->where('kiosk_enrollments.grade_level', $gradeNumber);
             })
             ->orderBy('kiosk_enrollments.completed_at', 'desc')
             ->limit(5)
@@ -147,7 +149,9 @@ class DashboardController extends Controller
                 $requiredDocsCount = 3;
                 if (str_contains($academicStatus, 'als')) {
                     $requiredDocsCount = 3;
-                } elseif (str_contains($academicStatus, 'feree') || str_contains($academicStatus, 'balik')) {
+                } elseif (str_contains($academicStatus, 'feree')) {
+                    $requiredDocsCount = 4;
+                } elseif (str_contains($academicStatus, 'balik')) {
                     $requiredDocsCount = 3;
                 }
 

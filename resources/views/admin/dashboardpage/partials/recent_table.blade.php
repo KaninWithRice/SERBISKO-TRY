@@ -3,7 +3,7 @@
         <h2 class="text-xl font-black text-[#003918] uppercase tracking-tighter">
             Recent Kiosk Submissions
         </h2>
-        <a href="{{ route('admin.students', ['status' => 'Document Verified', 'grade_level' => request('grade_level')]) }}"
+        <a href="{{ route('admin.students', ['status' => 'For Enrollment', 'grade_level' => request('grade_level'), 'school_year' => $activeSY]) }}"
         id="view-all-link"
         class="text-[#0c4222] text-sm underline hover:text-[#00923F] transition">
             View All
@@ -65,7 +65,7 @@
 
                             {{-- Requirements Status --}}
                             <td class="py-4 px-2 text-center">
-                                @if($submission->status === 'Officially Enrolled')
+                                @if($submission->requirement_status === 'Complete')
                                     <span class="inline-block bg-[#009444] text-white text-[10px] font-black px-4 py-1.5 rounded-lg shadow-sm min-w-[110px] uppercase tracking-widest">
                                         Complete
                                     </span>

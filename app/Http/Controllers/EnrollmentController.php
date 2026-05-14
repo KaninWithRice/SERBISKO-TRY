@@ -87,10 +87,10 @@ class EnrollmentController extends Controller
         $student = $this->getStudent($userId);
         if (!$student) return redirect(url('/login'))->withErrors(['message' => 'Student record not found.']);
 
-        session(['student_status' => $request->student_status]);
+        session(['student_status' => ucfirst(strtolower($request->student_status))]);
 
         DB::table('kiosk_enrollments')->where('student_id', $student->id)      
-            ->update(['academic_status' => $request->student_status]);
+            ->update(['academic_status' => ucfirst(strtolower($request->student_status))]);
 
         return redirect(url('/student/track-selection'));
     }
@@ -105,7 +105,7 @@ class EnrollmentController extends Controller
         session(['track' => $request->track]);
 
         DB::table('kiosk_enrollments')->where('student_id', $student->id)      
-            ->update(['track' => $request->track]);
+            ->update(['track' => ucfirst(strtolower($request->track))]);
 
         return redirect(url('/student/cluster-selection'));
     }
