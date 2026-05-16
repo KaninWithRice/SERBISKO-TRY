@@ -23,7 +23,7 @@ class ScanController extends Controller
         if (str_contains($lowerDoc, 'birth') || str_contains($lowerDoc, 'psa')) return 'psa';
         if (str_contains($lowerDoc, 'enrollment') || str_contains($lowerDoc, 'form')) return 'enroll_form';
         if (str_contains($lowerDoc, 'als') || str_contains($lowerDoc, 'alternative')) return 'als_cert';
-        if (str_contains($lowerDoc, 'affidavit') || str_contains($lowerDoc, 'sworn')) return 'affidavit';
+        if (str_contains($lowerDoc, 'affidavit') || str_contains($lowerDoc, 'sworn') || str_contains($lowerDoc, 'undertaking')) return 'affidavit';
         if (str_contains($lowerDoc, 'moral')) return 'good_moral';
         if (str_contains($lowerDoc, '137') || str_contains($lowerDoc, 'sf10')) return 'sf10';
         return 'sf9';
@@ -200,7 +200,7 @@ class ScanController extends Controller
             elseif (str_contains($lowerDoc, 'birth') || str_contains($lowerDoc, 'psa')) $pythonDocType = 'birth_certificate';
             elseif (str_contains($lowerDoc, 'enrollment') || str_contains($lowerDoc, 'form')) $pythonDocType = 'enroll_form';
             elseif (str_contains($lowerDoc, 'als') || str_contains($lowerDoc, 'alternative')) $pythonDocType = 'als_certificate';
-            elseif (str_contains($lowerDoc, 'affidavit') || str_contains($lowerDoc, 'sworn')) $pythonDocType = 'affidavit';
+            elseif (str_contains($lowerDoc, 'affidavit') || str_contains($lowerDoc, 'sworn') || str_contains($lowerDoc, 'undertaking')) $pythonDocType = 'affidavit';
             elseif (str_contains($lowerDoc, 'moral')) $pythonDocType = 'good_moral';
             elseif (str_contains($lowerDoc, '137') || str_contains($lowerDoc, 'sf10')) $pythonDocType = 'form_137';
             else $pythonDocType = 'generic_name_check'; 

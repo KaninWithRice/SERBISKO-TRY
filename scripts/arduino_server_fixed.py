@@ -207,16 +207,20 @@ def check_rejection():
         return jsonify({'rejected': False})
         
     found = False
-    while arduino.in_waiting > 0:
-        try:
+    # Only read if there is data to avoid blocking or stale reads
+    try:
+        while arduino.in_waiting > 0:
             line = arduino.readline().decode('utf-8', errors='ignore').strip()
             if line:
                 print(f"📡 Serial Read (Rejection Check): {line}")
-                if 'PAPER_REJECTED' in line or 'I0' in line:
+                # We only trigger if the line is exactly or contains the trigger
+                if line == 'I0' or 'PAPER_REJECTED' in line:
                     found = True
-        except Exception as e:
-            print(f"⚠️ Error reading serial: {e}")
-            break
+                    # Clear buffer after finding a rejection to prevent double-triggering
+                    arduino.reset_input_buffer()
+                    break 
+    except Exception as e:
+        print(f"⚠️ Error reading serial: {e}")
             
     return jsonify({'rejected': found})
 
