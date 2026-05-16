@@ -17,7 +17,7 @@ app = Flask(__name__)
 CORS(app)
 
 # CONFIG
-LIS_URL = "https://depaid.ct.ws/"
+LIS_URL = "https://dep-aid-rm2h.vercel.app/"
 CREDS = ("depedsample@gmail.com", "deped123")
 
 def run_check(lrn, expected_grade, webhook, scan_id):

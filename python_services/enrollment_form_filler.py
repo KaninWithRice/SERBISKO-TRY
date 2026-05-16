@@ -36,7 +36,7 @@ def log_response_info(response):
     return response
 
 # Configuration
-LIS_URL = "https://depaid.ct.ws/"
+LIS_URL = "https://dep-aid-rm2h.vercel.app/"
 LIS_EMAIL = "depedsample@gmail.com"
 LIS_PASSWORD = "deped123"
 

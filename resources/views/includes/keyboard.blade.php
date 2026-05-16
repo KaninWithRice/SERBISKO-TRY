@@ -174,8 +174,16 @@
     });
 
     function handleAutoCapitalization(input) {
-        if (!keyboard) return;
+        if (!keyboard || !selectedInput) return;
         if (keyboard.options.layoutName === "numbers") return;
+        
+        // Skip auto-capitalization for email and password fields
+        if (selectedInput.type === "email" || selectedInput.type === "password") {
+            if (keyboard.options.layoutName === "shift") {
+                keyboard.setOptions({ layoutName: "default" });
+            }
+            return;
+        }
 
         // Auto-capitalize if input is empty, ends with a space, or newline
         const shouldCapitalize = input.length === 0 || input.endsWith(" ") || input.endsWith("\n");

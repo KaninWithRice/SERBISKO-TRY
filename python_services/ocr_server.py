@@ -109,27 +109,27 @@ def ocr():
             'report_card': {
                 'strong': ['sf9', 'schoolform9', 'reportcard', 'form9', 'learner progress', 'progress report', 'periodic rating', 'learning area', 'core values', 'final rating', 'remarks'], 
                 'weak': ['quarter', 'subject', 'narrative report', 'attendance', 'teacher', 'principal', 'adviser'],
-                'block': ['psa', 'nso', 'registry', 'birth', 'affidavit', 'moral', 'als', 'alternative', 'marriage', 'death', 'enrollment', 'registration', 'basic education', 'be lfd', 'learner information']
+                'block': ['affidavit', 'marriage', 'death']
             },
             'birth_certificate': {
-                'strong': ['psa', 'nso', 'registry', 'birth', 'live birth'], 
-                'weak': ['live', 'born', 'child', 'registry number', 'republic', 'philippines', 'statistics', 'authority', 'census', 'civil', 'register'],
-                'block': ['enrollment', 'rating', 'attendance', 'learner progress', 'moral']
+                'strong': ['psa', 'nso', 'live birth', 'certificate of live birth', 'civil registrar', 'remarks annotation'], 
+                'weak': ['birth', 'live', 'born', 'child', 'republic', 'philippines', 'statistics', 'authority', 'census', 'civil', 'register', 'registry'],
+                'block': ['enrollment', 'learner progress', 'moral']
             },
             'enroll_form': {
                 'strong': ['enrollment', 'basic education', 'learner information', 'be lfd'],
-                'weak': ['registration', 'form', 'student', 'school', 'year', 'parent', 'signature', 'date', 'semester', 'grade', 'guardian', 'contact number', 'sex', 'age', 'birthday'],
-                'block': ['psa', 'nso', 'registry', 'birth', 'live birth', 'born', 'statistics', 'civil', 'census', 'rating', 'periodic rating', 'core values', 'learning area']
+                'weak': ['registration', 'form', 'student', 'school', 'year', 'parent', 'signature', 'date', 'semester', 'grade', 'guardian', 'contact number', 'sex', 'age', 'birthday', 'psa', 'nso', 'birth'],
+                'block': ['live birth', 'born', 'statistics', 'census', 'rating', 'periodic rating', 'core values', 'learning area']
             },
             'als_certificate': {
-                'strong': ['als', 'alternative learning', 'equivalency', 'elementary completer', 'secondary completer'],
-                'weak': ['completion', 'passer', 'rating', 'deped', 'department', 'education'],
-                'block': ['psa', 'nso', 'registry', 'birth', 'marriage', 'death']
+                'strong': ['als equivalency', 'als accreditation', 'elementary completer', 'secondary completer'],
+                'weak': ['completion', 'passer', 'rating', 'deped', 'department of education'],
+                'block': ['psa', 'nso', 'birth', 'marriage', 'death']
             },
             'good_moral': {
                 'strong': ['good moral', 'character', 'conduct'],
                 'weak': ['recommendation', 'student', 'school', 'principal', 'office', 'clearance'],
-                'block': ['psa', 'nso', 'registry', 'birth']
+                'block': ['psa', 'nso', 'birth']
             },
             'affidavit': {
                 'strong': ['affidavit', 'sworn', 'statement', 'notary'],
@@ -139,7 +139,7 @@ def ocr():
             'form_137': {
                 'strong': ['sf10', 'school form 10', 'form 137', 'permanent record'],
                 'weak': ['transcript', 'grades', 'secondary', 'student', 'record', 'school'],
-                'block': ['psa', 'nso', 'registry', 'birth']
+                'block': ['psa', 'nso', 'birth']
             }
         }
         config = doc_config.get(doc_type, {'strong': [], 'weak': [], 'block': []})
@@ -156,7 +156,7 @@ def ocr():
                 log("-----------------------------------------")
 
                 # v9.15: FUZZY BLOCK CHECK (More robust than literal)
-                b_m, b_list = fuzzy_keyword_match(config['block'], clean_blob, threshold=0.85)
+                b_m, b_list = fuzzy_keyword_match(config['block'], clean_blob, threshold=0.92)
                 if b_m >= 1:
                     log(f"BLOCK WORD FOUND: {b_list}. Document Mismatch!")
                     return jsonify({'success': False, 'error': f"Document mismatch. This looks like a {b_list[0].upper()} but we need a {doc_type.replace('_', ' ').upper()}."})
@@ -164,7 +164,7 @@ def ocr():
                 # 2. Fuzzy Detect other document types to prevent cross-acceptance
                 for other_type, other_cfg in doc_config.items():
                     if other_type != doc_type:
-                        o_s_m, o_s_list = fuzzy_keyword_match(other_cfg['strong'], clean_blob, threshold=0.85)
+                        o_s_m, o_s_list = fuzzy_keyword_match(other_cfg['strong'], clean_blob, threshold=0.92)
                         if o_s_m >= 1:
                             if not any(k in config['strong'] for k in o_s_list):
                                 log(f"DETECTED OTHER DOC TYPE: {other_type} via {o_s_list}. Rejecting!")
@@ -180,34 +180,34 @@ def ocr():
                     found_doc = True
                     if len(text) > len(best_text): best_text = text
                     all_lrn_candidates.extend(extract_candidates(text))
-                    
-                    # Strict match
-                    if fuzzy_match(first_name, text) and fuzzy_match(last_name, text):
-                        name_verified = True
-                    # Lenient match (v9.10 Speed Optimization)
-                    elif (fuzzy_match(first_name, text, 0.4) and fuzzy_match(last_name, text, 0.1)) or \
-                         (fuzzy_match(last_name, text, 0.4) and fuzzy_match(first_name, text, 0.1)):
-                        name_verified = True
+                
+                # Strict match
+                if fuzzy_match(first_name, text) and fuzzy_match(last_name, text):
+                    name_verified = True
+                # Lenient match (v9.10 Speed Optimization)
+                elif (fuzzy_match(first_name, text, 0.45) and fuzzy_match(last_name, text, 0.2)) or \
+                     (fuzzy_match(last_name, text, 0.45) and fuzzy_match(first_name, text, 0.2)):
+                    name_verified = True
 
-                    if name_verified:
-                        log(f"SUCCESS: Name verified early in Pass {p_idx+1}, Rot {rot}")
-                        break
+                if name_verified:
+                    log(f"SUCCESS: Name verified early in Pass {p_idx+1}, Rot {rot}")
+                    break
             if name_verified: break
-            
+        
         if not found_doc:
             return jsonify({'success': False, 'error': f"Document mismatch. Please scan the correct {doc_type.replace('_', ' ')}."})
-            
+        
         if not name_verified:
             if fuzzy_match(first_name, best_text) and fuzzy_match(last_name, best_text):
                 name_verified = True
             elif (fuzzy_match(first_name, best_text, 0.4) and fuzzy_match(last_name, best_text, 0.1)) or \
                  (fuzzy_match(last_name, best_text, 0.4) and fuzzy_match(first_name, best_text, 0.1)):
                 name_verified = True
-                
+        
         if not name_verified:
             log(f"NAME MISMATCH. Expected: {first_name} {last_name}")
             return jsonify({'success': False, 'error': f"Name mismatch. Student name not found on document."})
-            
+        
         return jsonify({
             'success': True, 
             'name_verified': True, 

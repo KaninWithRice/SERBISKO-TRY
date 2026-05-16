@@ -158,6 +158,8 @@
         Welcome to TNCHS-SHS, Ka-Compre!
     </p>
 
+    @include('includes.keyboard')
+
     <script>
         let seconds = 180;
         const timerElement = document.getElementById('timer');
@@ -172,12 +174,44 @@
         }, 1000);
 
         function openEmailModal() {
-            document.getElementById('emailModal').classList.remove('hidden');
-            document.getElementById('emailInput').focus();
+            const modal = document.getElementById('emailModal');
+            modal.classList.remove('hidden');
+            
+            // Focus after a short delay to ensure modal is visible
+            setTimeout(() => {
+                document.getElementById('emailInput').focus();
+            }, 100);
         }
 
         function closeEmailModal() {
             document.getElementById('emailModal').classList.add('hidden');
+            if (window.hideKeyboard) {
+                window.hideKeyboard();
+            }
+        }
+
+        // Adjust modal position when keyboard is shown
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                    const isKeyboardVisible = mutation.target.classList.contains('show');
+                    const modal = document.getElementById('emailModal');
+                    if (isKeyboardVisible) {
+                        modal.classList.add('items-start');
+                        modal.classList.remove('items-center');
+                        modal.querySelector('.bg-white').classList.add('mt-10');
+                    } else {
+                        modal.classList.remove('items-start');
+                        modal.classList.add('items-center');
+                        modal.querySelector('.bg-white').classList.remove('mt-10');
+                    }
+                }
+            });
+        });
+
+        const keyboardContainer = document.getElementById('keyboard-container');
+        if (keyboardContainer) {
+            observer.observe(keyboardContainer, { attributes: true });
         }
 
         async function sendEmail() {

@@ -150,7 +150,7 @@ class VerificationController extends Controller
         if (str_contains($lowerDoc, 'report') || str_contains($lowerDoc, 'sf9')) return 'sf9';
         if (str_contains($lowerDoc, 'birth') || str_contains($lowerDoc, 'psa')) return 'psa';
         if (str_contains($lowerDoc, 'enrollment') || str_contains($lowerDoc, 'form')) return 'enroll_form';
-        if (str_contains($lowerDoc, 'als') || str_contains($lowerDoc, 'alternative') || str_contains($lowerDoc, 'certificate')) return 'als_cert';
+        if (str_contains($lowerDoc, 'als') || str_contains($lowerDoc, 'alternative')) return 'als_cert';
         if (str_contains($lowerDoc, 'affidavit') || str_contains($lowerDoc, 'sworn')) return 'affidavit';
         if (str_contains($lowerDoc, 'moral')) return 'good_moral';
         if (str_contains($lowerDoc, '137') || str_contains($lowerDoc, 'sf10')) return 'sf10';
